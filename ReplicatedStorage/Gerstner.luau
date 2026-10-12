@@ -141,10 +141,10 @@ end
 local GIANT = {
 	Direction = Vector3.new(1, 0, 0), -- direccion de avance (unitario)
 	Height = 1600,  -- altura maxima en studs
-	Width = 1000,   -- ancho del pulso (menor = mas empinada)
+	Width = 600,    -- ancho del pulso (menor = mas empinada)
 	Speed = 120,    -- studs/s
-	Period = 90,    -- segundos entre olas
-	Start = -3600,  -- distancia inicial detras del origen
+	Period = 60,    -- segundos entre olas
+	Start = -2400,  -- distancia inicial detras del origen
 }
 
 function Gerstner.ComputeGiantWave(Position: Vector3, t: number): Vector3

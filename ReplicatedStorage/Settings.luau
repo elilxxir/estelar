@@ -103,24 +103,24 @@ end
 return {
 	DEBUG = true,
 	GRID_SETTINGS = {
-		CHUNK_SIZE = 200, 
-		Padding = 96,
+		CHUNK_SIZE = 100, 
+		Padding = 48,
 		PLANE_OFFSET = Vector3.new(0, 25, 0),
-		Width = 80,
-		Length = 80,
+		Width = 40,
+		Length = 40,
 
 		PaddingMultiplier = 1,
 		UV_SCALE = 2;
 	},
 
 	WORKER_COUNT = 6,
-	FrustumRenderDistance = 6000,
-	LowRenderDistance = 400,
-	MaxChunkRenderDistance = 6000,
+	FrustumRenderDistance = 1500,
+	LowRenderDistance = 200,
+	MaxChunkRenderDistance = 2800,
 
 	Subdivisions = {
-		[1] = 800,
-		[2] = 400,
+		[1] = 400,
+		[2] = 200,
 	},
 
 	--Waves = BrownianMotionWaves(6);
