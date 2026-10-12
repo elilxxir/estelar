@@ -136,6 +136,24 @@ function Gerstner.new(Direction: Vector3, WaveLength: number, Steepness: number,
 	}
 end
 
+-- // Ola gigante periodica (pulso sech^2). Se calcula solo con el tiempo del servidor,
+-- // asi cliente y servidor coinciden sin eventos.
+local GIANT = {
+	Direction = Vector3.new(1, 0, 0), -- direccion de avance (unitario)
+	Height = 120,   -- altura maxima en studs
+	Width = 250,    -- ancho del pulso
+	Speed = 60,     -- studs/s
+	Period = 240,   -- segundos entre olas
+	Start = -3000,  -- distancia inicial detras del origen
+}
+
+function Gerstner.ComputeGiantWave(Position: Vector3, t: number): Vector3
+	local center = GIANT.Start + GIANT.Speed * (t % GIANT.Period)
+	local d = GIANT.Direction:Dot(Position) - center
+	local s = 1 / math.cosh(d / GIANT.Width)
+	return v3new(0, GIANT.Height * s * s, 0)
+end
+
 --[[
 	Computes all active waves for a specific Vector3 point and returns the new point.
 	<strong>Waves:</strong> All the active waves given as a table.
@@ -157,6 +175,7 @@ function Gerstner.ComputeTransform( Waves: { WaveInfo }, Position: Vector3, t: n
 		Transform += Gerstner.ComputeWave(Position, t, waveNumber, waveSpeed, waveAmplitude, Wave.Direction)
 	end
 
+	Transform += Gerstner.ComputeGiantWave(Position, t)
 	return Transform
 end
 

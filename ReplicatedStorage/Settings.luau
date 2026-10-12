@@ -125,28 +125,28 @@ return {
 
 	--Waves = BrownianMotionWaves(6);
 	Waves = {
-		GerstnerWave.new(Vector3.new(0.6, 0, 0.05), 50, 0.15),
-		GerstnerWave.new(Vector3.new(0.2, 0, 0.4),  60, 0.10),
-		GerstnerWave.new(Vector3.new(0.15, 0, 0.1), 75, 0.08),
+		GerstnerWave.new(Vector3.new(0.6, 0, 0.05), 50, 0.04),
+		GerstnerWave.new(Vector3.new(0.2, 0, 0.4),  60, 0.03),
+		GerstnerWave.new(Vector3.new(0.15, 0, 0.1), 75, 0.02),
 	},
 
 	ISLAND_SPEED_MULTIPLIER = 1.1,
 	ISLAND_PHASE_MULTIPLIER = 1,
 
 	WAVE_COLORS = {
-		CREST = Color3.fromRGB(77, 166, 156);
-		TROUGH = Color3.fromRGB(46, 89, 118);
+		CREST = Color3.fromRGB(95, 105, 110);
+		TROUGH = Color3.fromRGB(40, 48, 55);
 		VORTEX = Color3.fromRGB(18, 28, 33);
-		SHORE = Color3.fromRGB(60, 186, 171)
+		SHORE = Color3.fromRGB(60, 70, 75)
 	},
 	UV_SCROLL_SPEED = 1/12,
 	UV_SCROLL_DIRECTION = Vector2.new(1, 1),
 
-	DEPTH_ENABLED = true, -- // Note: Check known issues #4 in thread linked below
+	DEPTH_ENABLED = false, -- // Note: Check known issues #4 in thread linked below
 	DEPTH_RAY_LENGTH = Vector3.new(0, -15, 0),
 	DEPTH_RAY_OFFSET = Vector3.new(0, 5, 0),
 
-	WHITECAP_HEIGHT = 6,
+	WHITECAP_HEIGHT = 60,
 	SHORE_TRANSPARENCY = 0.2,
 
 	-- // DEBUG
