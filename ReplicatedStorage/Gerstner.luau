@@ -147,6 +147,8 @@ local GIANT = {
 	Start = -1800,  -- distancia inicial detras del origen
 }
 
+Gerstner.GIANT_CONFIG = GIANT
+
 function Gerstner.ComputeGiantWave(Position: Vector3, t: number): Vector3
 	local center = GIANT.Start + GIANT.Speed * (t % GIANT.Period)
 	local d = GIANT.Direction:Dot(Position) - center
