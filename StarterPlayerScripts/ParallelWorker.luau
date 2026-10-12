@@ -13,10 +13,10 @@ local ReplicatedStorage = game:GetService('ReplicatedStorage')
 local SharedTableRegistry = game:GetService('SharedTableRegistry')
 
 local GerstnerWave = require(ReplicatedStorage.Gerstner)
-local Helper = require(ReplicatedStorage.Helper)
-local HeightLookup = require(ReplicatedStorage.HeightLookup)
-local _settings = require(ReplicatedStorage.Settings)
-local Types = require(ReplicatedStorage.Types)
+local Helper = require(ReplicatedStorage.Gerstner.Helper)
+local HeightLookup = require(ReplicatedStorage.Gerstner.HeightLookup)
+local _settings = require(ReplicatedStorage.Gerstner.Settings)
+local Types = require(ReplicatedStorage.Gerstner.Types)
 
 local clamp = math.clamp
 local XZ_INCLUDE = Vector3.new(1, 0, 1)
