@@ -1,0 +1,6 @@
+Todos los scripts hijos directos o indirectos en ReplicatedStorage son module scripts
+
+Los script Gerstner y Octree se encuentran dentro de ReplicatedStorage.
+Los Script HeightLookup, Helper, Settings y Types son hijos de Gerstner.
+
+La carpeta Serial es hijo de Gerstner y dentro contiene los script: BoatManager, Setup, ZoneManager.

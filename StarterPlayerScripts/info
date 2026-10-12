@@ -1,0 +1,3 @@
+el script OceanParallel se encuentra en StarterPlayer > StarterPlayerScripts
+el script ParallelWorker es hijo de OceanParallel y esta desactivado
+ambos son client script
