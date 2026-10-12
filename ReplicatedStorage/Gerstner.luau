@@ -143,8 +143,8 @@ local GIANT = {
 	Height = 120,   -- altura maxima en studs
 	Width = 250,    -- ancho del pulso
 	Speed = 60,     -- studs/s
-	Period = 240,   -- segundos entre olas
-	Start = -3000,  -- distancia inicial detras del origen
+	Period = 20,    -- segundos entre olas
+	Start = -600,   -- distancia inicial detras del origen
 }
 
 function Gerstner.ComputeGiantWave(Position: Vector3, t: number): Vector3
