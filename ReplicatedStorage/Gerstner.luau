@@ -140,8 +140,8 @@ end
 -- // asi cliente y servidor coinciden sin eventos.
 local GIANT = {
 	Direction = Vector3.new(1, 0, 0), -- direccion de avance (unitario)
-	Height = 1200,  -- altura maxima en studs
-	Width = 700,    -- ancho del pulso (menor = mas empinada)
+	Height = 700,   -- altura maxima en studs
+	Width = 280,    -- ancho del pulso (menor = mas empinada)
 	Speed = 60,     -- studs/s
 	Period = 90,    -- segundos entre olas
 	Start = -1800,  -- distancia inicial detras del origen
