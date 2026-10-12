@@ -42,6 +42,13 @@ Lighting.ColorShift_Top = Color3.fromRGB(0, 0, 0)
 Lighting.EnvironmentDiffuseScale = 0.6
 Lighting.EnvironmentSpecularScale = 0.4
 
+-- // Si ya existe un Atmosphere en Lighting, su Density y Haze son la config inicial
+local ExistingAtmosphere = Lighting:FindFirstChildOfClass('Atmosphere')
+if ExistingAtmosphere then
+	BASE.Density = ExistingAtmosphere.Density
+	BASE.Haze = ExistingAtmosphere.Haze
+end
+
 local Atmosphere = GetOrCreate('Atmosphere', Lighting)
 Atmosphere.Color = Color3.fromRGB(150, 160, 170)
 Atmosphere.Decay = Color3.fromRGB(110, 120, 130)
