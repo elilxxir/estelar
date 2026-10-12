@@ -106,15 +106,15 @@ return {
 		CHUNK_SIZE = 100, 
 		Padding = 48,
 		PLANE_OFFSET = Vector3.new(0, 25, 0),
-		Width = 40,
-		Length = 40,
+		Width = 80,
+		Length = 80,
 
 		PaddingMultiplier = 1,
 		UV_SCALE = 2;
 	},
 
 	WORKER_COUNT = 6,
-	FrustumRenderDistance = 900,
+	FrustumRenderDistance = 3000,
 	LowRenderDistance = 200,
 	MaxChunkRenderDistance = 2800,
 
