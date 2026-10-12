@@ -140,11 +140,11 @@ end
 -- // asi cliente y servidor coinciden sin eventos.
 local GIANT = {
 	Direction = Vector3.new(1, 0, 0), -- direccion de avance (unitario)
-	Height = 800,   -- altura maxima en studs
-	Width = 500,    -- ancho del pulso (menor = mas empinada)
-	Speed = 60,     -- studs/s
+	Height = 1600,  -- altura maxima en studs
+	Width = 1000,   -- ancho del pulso (menor = mas empinada)
+	Speed = 120,    -- studs/s
 	Period = 90,    -- segundos entre olas
-	Start = -1800,  -- distancia inicial detras del origen
+	Start = -3600,  -- distancia inicial detras del origen
 }
 
 function Gerstner.ComputeGiantWave(Position: Vector3, t: number): Vector3
