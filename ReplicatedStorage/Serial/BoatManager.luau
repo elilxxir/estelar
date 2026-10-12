@@ -8,7 +8,7 @@ local CS = game:GetService('CollectionService')
 local RunService = game:GetService('RunService')
 
 local IS_CLIENT = RunService:IsClient()
-local HeightLookup = require(RS.HeightLookup)
+local HeightLookup = require(RS.Gerstner.HeightLookup)
 local OctreeModule = require(RS:WaitForChild('Octree'))
 
 local BOAT_TREE = nil

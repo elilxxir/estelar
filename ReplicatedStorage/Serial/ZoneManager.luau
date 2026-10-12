@@ -8,8 +8,8 @@ local RunService = game:GetService('RunService')
 
 local IS_SERVER = RunService:IsServer()
 local OctreeModule = require(RS:WaitForChild('Octree'))
-local _settings = require(RS:WaitForChild('Settings'))
-local Helper = require(RS:WaitForChild('Helper'))
+local _settings = require(RS:WaitForChild('Gerstner'):WaitForChild('Settings'))
+local Helper = require(RS:WaitForChild('Gerstner'):WaitForChild('Helper'))
 
 local ISLAND_TREE = OctreeModule.new()
 local ZONE_TREE = OctreeModule.new()

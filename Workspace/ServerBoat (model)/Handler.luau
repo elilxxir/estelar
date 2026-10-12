@@ -3,9 +3,9 @@
 --!native
 --!optimize 2
 local Boat = script.Parent
-local HeightLookup = require(game.ReplicatedStorage.HeightLookup)
-local ZoneManager = require(game.ReplicatedStorage.Serial.ZoneManager)
-local BoatManager = require(game.ReplicatedStorage.Serial.BoatManager)
+local HeightLookup = require(game.ReplicatedStorage.Gerstner.HeightLookup)
+local ZoneManager = require(game.ReplicatedStorage.Gerstner.Serial.ZoneManager)
+local BoatManager = require(game.ReplicatedStorage.Gerstner.Serial.BoatManager)
 Boat:WaitForChild('Main')
 workspace.Camera.CameraType = Enum.CameraType.Track
 local BuoyancyPoints = {

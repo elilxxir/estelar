@@ -1,7 +1,7 @@
 -- script dentro de la part RoughSeaArea
 
 task.wait(5)
-local ZoneManager = require(game.ReplicatedStorage.Serial.ZoneManager)
+local ZoneManager = require(game.ReplicatedStorage.Gerstner.Serial.ZoneManager)
 
 local function SpawnRoughSeaArea()
 	local Parameters = {
