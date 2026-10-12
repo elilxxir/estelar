@@ -166,7 +166,7 @@ end
 	<strong>amplitudeMulti:</strong> The amplitude multiplier for the wave, used for zone / island parameters.
 	
 ]]
-function Gerstner.ComputeTransform( Waves: { WaveInfo }, Position: Vector3, t: number, phaseMulti: number?, speedMulti: number?, amplitudeMulti: number? ): Vector3
+function Gerstner.ComputeTransform( Waves: { WaveInfo }, Position: Vector3, t: number, phaseMulti: number?, speedMulti: number?, amplitudeMulti: number?, giantScale: number? ): Vector3
 	local Transform = v3zero
 	local phaseMulti = phaseMulti:: number or 1
 	local speedMulti = speedMulti:: number or 1
@@ -177,7 +177,10 @@ function Gerstner.ComputeTransform( Waves: { WaveInfo }, Position: Vector3, t: n
 		Transform += Gerstner.ComputeWave(Position, t, waveNumber, waveSpeed, waveAmplitude, Wave.Direction)
 	end
 
-	Transform += Gerstner.ComputeGiantWave(Position, t)
+	local giantScale = giantScale:: number or 1
+	if giantScale > 0 then
+		Transform += Gerstner.ComputeGiantWave(Position, t) * giantScale
+	end
 	return Transform
 end
 

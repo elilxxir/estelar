@@ -25,6 +25,16 @@ local v3new = Vector3.new
 local v3zero = Vector3.zero
 local v3one = Vector3.one
 
+local EDGE_HALF = (_settings.GRID_SETTINGS.Width - 1) * _settings.GRID_SETTINGS.Padding / 2
+local EDGE_FADE = _settings.GIANT_EDGE_FADE
+
+-- // Escala (0..1) de la ola gigante segun la cercania al borde del plano, para no dejar un acantilado contra los planos planos
+local function GetEdgeScale(vertex: Vector3): number
+	local edge = math.max(math.abs(vertex.X), math.abs(vertex.Z))
+	local e = math.clamp((EDGE_HALF - edge) / EDGE_FADE, 0, 1)
+	return e * e * (3 - 2 * e)
+end
+
 local LERP_MAX_FRAMES = 30 -- // How many frames a vertex will 'lerp' for
 local WORKER_COUNT = _settings.WORKER_COUNT
 
@@ -131,7 +141,7 @@ Actor:BindToMessage('Compute', function(waves, Plane: MeshPart, EditableMesh: Ed
 			-- // not render any chunks that aren't on the screen
 			-- // leading to some moderate performance gains
 
-			if DistanceToChunk > _settings.MaxChunkRenderDistance or Helper.IsChunkInView(ChunkPosition, CameraCF, distance2, farPlaneHeight2, farPlaneWidth2, rightNormal, leftNormal, topNormal, bottomNormal, frustumCFrameInverse) == false then
+			if DistanceToChunk > _settings.MaxChunkRenderDistance or (_settings.DISABLE_CHUNK_CULLING ~= true and Helper.IsChunkInView(ChunkPosition, CameraCF, distance2, farPlaneHeight2, farPlaneWidth2, rightNormal, leftNormal, topNormal, bottomNormal, frustumCFrameInverse) == false) then
 				ChunkData.Rendering = false
 				continue
 			end
@@ -192,7 +202,7 @@ Actor:BindToMessage('Compute', function(waves, Plane: MeshPart, EditableMesh: Ed
 				-- // this allows us to call the Gerstner computation less, at the cost of some smoothness / detail
 				-- // however it is unnoticeable due to the distance.
 				-- // Has moderate performance gains
-				if Info.QUALITY_LEVEL == 2 and ZoneParameters == nil then
+				if _settings.FORCE_FULL_QUALITY ~= true and Info.QUALITY_LEVEL == 2 and ZoneParameters == nil then
 					debug.profilebegin('LOW-Chunk')
 
 					local vertex = Info.Position
@@ -207,14 +217,14 @@ Actor:BindToMessage('Compute', function(waves, Plane: MeshPart, EditableMesh: Ed
 						-- // the "goal position" of the lerp, otherwise it will look very desynced
 
 						if LastPlanePosition ~= ObjectPosition or Info.Lerping == false or ChunkData.Rendering == false then
-							local Transform = GerstnerWave.ComputeTransform(waves, SeaPosition, t, PhaseMultiplier, SpeedMultiplier, AmplitudeMultiplier)
+							local Transform = GerstnerWave.ComputeTransform(waves, SeaPosition, t, PhaseMultiplier, SpeedMultiplier, AmplitudeMultiplier, GetEdgeScale(vertex))
 							local Position = vertex + (Transform)
 
 							PreviousGoal = Position
 						end
 
 						local Transform = 
-							GerstnerWave.ComputeTransform(waves, SeaPosition, t + (dt * LERP_MAX_FRAMES), PhaseMultiplier, SpeedMultiplier, AmplitudeMultiplier)
+							GerstnerWave.ComputeTransform(waves, SeaPosition, t + (dt * LERP_MAX_FRAMES), PhaseMultiplier, SpeedMultiplier, AmplitudeMultiplier, GetEdgeScale(vertex))
 
 						Info.GoalPosition = vertex + Transform
 						Info.LastPosition = PreviousGoal or EditableMesh:GetPosition(VertexId)
@@ -287,7 +297,7 @@ Actor:BindToMessage('Compute', function(waves, Plane: MeshPart, EditableMesh: Ed
 				local SeaPosition = ObjectPosition + vertex
 				local ShoreTransparency = Helper.GetVertexTransparency(SeaPosition, VertexTransparencyArray, NormalizedDistanceToIsland)
 
-				local Transform = GerstnerWave.ComputeTransform(waves, SeaPosition, t, PhaseMultiplier, SpeedMultiplier, AmplitudeMultiplier)
+				local Transform = GerstnerWave.ComputeTransform(waves, SeaPosition, t, PhaseMultiplier, SpeedMultiplier, AmplitudeMultiplier, GetEdgeScale(vertex))
 				local UpdatedUV = Helper.GetUV(Info.UV, t)
 				local FinalPosition = vertex + Transform
 

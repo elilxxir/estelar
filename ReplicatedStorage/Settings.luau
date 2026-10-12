@@ -151,6 +151,10 @@ return {
 
 	-- // DEBUG
 	-- // Known issues thread: https://devforum.roblox.com/t/client-beta-in-experience-mesh-image-apis-now-available-in-published-experiences/3267293
+	DISABLE_CHUNK_CULLING = true, -- // Actualiza todos los chunks aunque no esten en pantalla (evita vertices congelados / estirados)
+	FORCE_FULL_QUALITY = true, -- // Todos los vertices se calculan cada frame (sin LOD por lerp)
+	GIANT_EDGE_FADE = 350, -- // Studs de desvanecimiento de la ola gigante hacia el borde del plano
+
 	FRUSTUM_CULLING_FIX = true; -- // See known issues #7
 	
 }
