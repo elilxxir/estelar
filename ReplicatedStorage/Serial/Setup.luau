@@ -304,7 +304,6 @@ function Setup.GetPlaneFromEditableMesh(EM: EditableMesh, Name: string?): MeshPa
 	end
 	if Appearance and Appearance:IsA('SurfaceAppearance') then
 		local ClonedAppearance = Appearance:Clone()
-		ClonedAppearance.AlphaMode = Enum.AlphaMode.Transparency -- // v03
 		ClonedAppearance.Color = _settings.SURFACE_APPEARANCE_COLOR -- // v03
 		ClonedAppearance.Parent = Plane
 	end
@@ -511,7 +510,6 @@ function Setup.SetupSecondaryPlanes(EM: EditableMesh): { { MeshPart | Vector3 } 
 		end
 		if Appearance and Appearance:IsA('SurfaceAppearance') then
 			local ClonedAppearance = Appearance:Clone()
-			ClonedAppearance.AlphaMode = Enum.AlphaMode.Transparency -- // v03
 			ClonedAppearance.Color = _settings.SURFACE_APPEARANCE_COLOR -- // v03
 			ClonedAppearance.Parent = Plane
 		end
