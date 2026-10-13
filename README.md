@@ -13,7 +13,14 @@ Sys:
 * Add multiple cameras attached to the ship for immersion  -low priority
 * Add enter driver/passenger seats prompt by the ship door -low priority
   (Include entering, exiting sound, camera fade)
-* Ship's ability to fly (? -gotta consider adding this feature
+* Ship's ability to fly -under consideration
+  * Keep a sampled Gerstner surface as the hover/flight reference; keep rendered ocean planes non-collidable.
+  * Treat takeoff, flight, and landing as separate control states. During flight, use helicopter-like controls: pitch/roll for horizontal acceleration, yaw for heading, and collective for vertical movement.
+  * Enforce minimum clearance using wave-height samples at all four buoyancy points, accounting for hull tilt. Do not allow descent commands to cross this safety limit.
+  * Gate horizontal tilt and acceleration until the ship clears a configurable height above the local wave. Reduce tilt and horizontal speed while landing.
+  * Sample wave height ahead along the flight path. Limit horizontal speed and tilt when the required vertical response exceeds controller limits; smooth transitions and cap changes to the clearance target.
+  * Validate the flight state and forces on the server. Resolve the 90-second giant-wave wrap before relying on lookahead for safety.
+  * This is a design proposal; Fly is not implemented yet.
 * Add ship's trail/splash on sea -high priority
   * Foam churn at the stern: Put paired Attachments near the rear corners of the boat and use lightweight ParticleEmitters for short-lived spray and foam. Scale the emission rate with boat speed; keep them off below a minimum speed.
   * The persistent wake: Draw a pair of widening, fading foam ribbons behind the boat. A Roblox Trail is a quick prototype, but it follows the boat’s attachments—not the water surface—so it can look detached when the boat bobs. For a more convincing result, render short ribbon segments locally and sample the same Gerstner water height at their positions so they sit on the waves.
