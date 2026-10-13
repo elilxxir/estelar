@@ -141,10 +141,10 @@ return {
 		-- // Olas medianas
 		GerstnerWave.new(Vector3.new(0.5, 0, -0.85).Unit, 170, 0.020),
 		GerstnerWave.new(Vector3.new(0.85, 0, 0.3).Unit,  115, 0.022),
-		GerstnerWave.new(Vector3.new(-0.2, 0, 0.95).Unit,  80, 0.024),
+		GerstnerWave.new(Vector3.new(-0.2, 0, 0.95).Unit,  80, 0.032), -- // v02 (antes 0.024)
 		-- // Rizado fino (cerca de la camara la malla es de 12 studs, asi que 36+ de largo se ve aceptable)
-		GerstnerWave.new(Vector3.new(0.4, 0, 0.9).Unit,    50, 0.030),
-		GerstnerWave.new(Vector3.new(-0.7, 0, 0.45).Unit,  36, 0.030),
+		GerstnerWave.new(Vector3.new(0.4, 0, 0.9).Unit,    50, 0.045), -- // v02 (antes 0.030)
+		GerstnerWave.new(Vector3.new(-0.7, 0, 0.45).Unit,  36, 0.045), -- // v02 (antes 0.030)
 		-- // v01: trenes extra en direcciones cruzadas. Rompen el patron repetitivo del mar quieto (interferencia entre olas).
 		-- // Cada ola cuesta calculo por vertice y por consulta de altura: si baja el rendimiento, comenta lineas de aqui.
 		-- // Todas >= 36 de largo (la malla cerca de la camara es de 12 studs). Suma de Steepness total ~0.30 (< 1, sin bucles).
@@ -159,8 +159,8 @@ return {
 	ISLAND_PHASE_MULTIPLIER = 1,
 
 	WAVE_COLORS = {
-		CREST = Color3.fromRGB(95, 105, 110);
-		TROUGH = Color3.fromRGB(40, 48, 55);
+		CREST = Color3.fromRGB(118, 128, 126); -- // v02 (antes 95,105,110): destello gris calido
+		TROUGH = Color3.fromRGB(32, 48, 54); -- // v02 (antes 40,48,55): teal pizarra oscuro
 		VORTEX = Color3.fromRGB(18, 28, 33);
 		SHORE = Color3.fromRGB(60, 70, 75)
 	},

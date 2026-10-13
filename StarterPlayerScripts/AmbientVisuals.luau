@@ -50,17 +50,17 @@ if ExistingAtmosphere then
 end
 
 local Atmosphere = GetOrCreate('Atmosphere', Lighting)
-Atmosphere.Color = Color3.fromRGB(150, 160, 170)
-Atmosphere.Decay = Color3.fromRGB(110, 120, 130)
+Atmosphere.Color = Color3.fromRGB(198, 180, 154) -- // v02 (antes 150,160,170): cielo beige calido
+Atmosphere.Decay = Color3.fromRGB(150, 128, 100) -- // v02 (antes 110,120,130)
 Atmosphere.Offset = 0.25
 Atmosphere.Glare = 0
 Atmosphere.Density = BASE.Density
 Atmosphere.Haze = BASE.Haze
 
 local ColorCorrection = GetOrCreate('ColorCorrectionEffect', Lighting)
-ColorCorrection.Saturation = -0.35
+ColorCorrection.Saturation = -0.25 -- // v02 (antes -0.35)
 ColorCorrection.Contrast = 0.1
-ColorCorrection.TintColor = Color3.fromRGB(215, 225, 235)
+ColorCorrection.TintColor = Color3.fromRGB(232, 224, 212) -- // v02 (antes 215,225,235): tinte calido
 ColorCorrection.Brightness = BASE.CCBrightness
 
 local Bloom = GetOrCreate('BloomEffect', Lighting)
