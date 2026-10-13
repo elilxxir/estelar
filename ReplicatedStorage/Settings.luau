@@ -121,13 +121,24 @@ return {
 	Subdivisions = {
 		[1] = 400,
 		[2] = 200,
+		[3] = 120, -- // Malla de 6 studs cerca de la camara (para el rizado fino). Si Setup da error, borra esta linea.
 	},
 
 	--Waves = BrownianMotionWaves(6);
 	Waves = {
-		GerstnerWave.new(Vector3.new(0.6, 0, 0.05), 50, 0.04),
-		GerstnerWave.new(Vector3.new(0.2, 0, 0.4),  60, 0.03),
-		GerstnerWave.new(Vector3.new(0.15, 0, 0.1), 75, 0.02),
+		-- // Mar quieto tipo Miller: oleaje largo y lento + olas medianas + rizado fino.
+		-- // Las direcciones deben ser unitarias (.Unit). Amplitud = Steepness / (2pi / WaveLength). Velocidad = sqrt(9.8 / (2pi / WaveLength)).
+		-- // Oleaje largo (swell): 1 a 2 studs de altura, ~20 s entre olas
+		GerstnerWave.new(Vector3.new(1, 0, 0.15).Unit,    620, 0.020),
+		GerstnerWave.new(Vector3.new(0.9, 0, -0.4).Unit,  470, 0.018),
+		GerstnerWave.new(Vector3.new(0.6, 0, 0.8).Unit,   340, 0.016),
+		-- // Olas medianas
+		GerstnerWave.new(Vector3.new(0.5, 0, -0.85).Unit, 170, 0.020),
+		GerstnerWave.new(Vector3.new(0.85, 0, 0.3).Unit,  115, 0.022),
+		GerstnerWave.new(Vector3.new(-0.2, 0, 0.95).Unit,  80, 0.024),
+		-- // Rizado fino (cerca de la camara la malla es de 6 studs, asi que 36+ de largo se ve bien)
+		GerstnerWave.new(Vector3.new(0.4, 0, 0.9).Unit,    50, 0.030),
+		GerstnerWave.new(Vector3.new(-0.7, 0, 0.45).Unit,  36, 0.030),
 	},
 
 	ISLAND_SPEED_MULTIPLIER = 1.1,
@@ -139,7 +150,7 @@ return {
 		VORTEX = Color3.fromRGB(18, 28, 33);
 		SHORE = Color3.fromRGB(60, 70, 75)
 	},
-	UV_SCROLL_SPEED = 1/12,
+	UV_SCROLL_SPEED = 1/30, -- // Mas lento = mar mas quieto
 	UV_SCROLL_DIRECTION = Vector2.new(1, 1),
 
 	DEPTH_ENABLED = false, -- // Note: Check known issues #4 in thread linked below
