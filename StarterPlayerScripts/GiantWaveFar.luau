@@ -26,7 +26,7 @@ local GRID = _settings.GRID_SETTINGS
 local STEP = 20 -- // Studs entre vertices a lo largo de la ola
 local TILE_LENGTH = 2000 -- // Largo de cada pieza en la direccion de la ola (maximo de Roblox por malla: 2048)
 local TILE_WIDTH = 2000 -- // Ancho de cada pieza (perpendicular a la ola)
-local ACROSS = 1 -- // Piezas a cada lado de la camara (3 en total = 6000 studs de ancho)
+local ACROSS = 3 -- // v11 (antes 1): piezas a cada lado de la camara (7 en total = 14000 studs de ancho)
 local SLOTS = 2 -- // Pulsos dibujados a la vez (los dos que quedan a cada lado de la camara)
 
 local Dir = CFG.Direction.Unit
@@ -119,6 +119,7 @@ local function CreateTile(EM: EditableMesh): MeshPart
 		local ClonedAppearance = Appearance:Clone()
 		ClonedAppearance.AlphaMode = Enum.AlphaMode.Overlay -- // v08 (antes Transparency): igual que los planos del oceano (Setup)
 		ClonedAppearance.Color = _settings.SURFACE_APPEARANCE_COLOR or Color3.fromRGB(31, 45, 62)
+		pcall(function() ClonedAppearance.ColorMap = '' end) -- // v11: sin ColorMap
 		ClonedAppearance.Parent = Part
 	end
 
