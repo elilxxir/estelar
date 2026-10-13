@@ -138,6 +138,14 @@ return {
 		-- // Rizado fino (cerca de la camara la malla es de 12 studs, asi que 36+ de largo se ve aceptable)
 		GerstnerWave.new(Vector3.new(0.4, 0, 0.9).Unit,    50, 0.030),
 		GerstnerWave.new(Vector3.new(-0.7, 0, 0.45).Unit,  36, 0.030),
+		-- // v01: trenes extra en direcciones cruzadas. Rompen el patron repetitivo del mar quieto (interferencia entre olas).
+		-- // Cada ola cuesta calculo por vertice y por consulta de altura: si baja el rendimiento, comenta lineas de aqui.
+		-- // Todas >= 36 de largo (la malla cerca de la camara es de 12 studs). Suma de Steepness total ~0.30 (< 1, sin bucles).
+		GerstnerWave.new(Vector3.new(0.75, 0, -0.65).Unit, 260, 0.018), -- // ~0.74 studs
+		GerstnerWave.new(Vector3.new(-0.45, 0, 0.9).Unit,  140, 0.022), -- // ~0.49 studs
+		GerstnerWave.new(Vector3.new(0.95, 0, -0.2).Unit,   95, 0.026), -- // ~0.39 studs
+		GerstnerWave.new(Vector3.new(-0.9, 0, -0.35).Unit,  65, 0.030), -- // ~0.31 studs, rizado que viaja contra el viento
+		GerstnerWave.new(Vector3.new(0.1, 0, -1).Unit,      44, 0.034), -- // ~0.24 studs, rizado fino lateral
 	},
 
 	ISLAND_SPEED_MULTIPLIER = 1.1,
