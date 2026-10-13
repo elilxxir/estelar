@@ -121,7 +121,6 @@ return {
 	Subdivisions = {
 		[1] = 400,
 		[2] = 200,
-		[3] = 120, -- // Malla de 6 studs cerca de la camara (para el rizado fino). Si Setup da error, borra esta linea.
 	},
 
 	--Waves = BrownianMotionWaves(6);
@@ -136,7 +135,7 @@ return {
 		GerstnerWave.new(Vector3.new(0.5, 0, -0.85).Unit, 170, 0.020),
 		GerstnerWave.new(Vector3.new(0.85, 0, 0.3).Unit,  115, 0.022),
 		GerstnerWave.new(Vector3.new(-0.2, 0, 0.95).Unit,  80, 0.024),
-		-- // Rizado fino (cerca de la camara la malla es de 6 studs, asi que 36+ de largo se ve bien)
+		-- // Rizado fino (cerca de la camara la malla es de 12 studs, asi que 36+ de largo se ve aceptable)
 		GerstnerWave.new(Vector3.new(0.4, 0, 0.9).Unit,    50, 0.030),
 		GerstnerWave.new(Vector3.new(-0.7, 0, 0.45).Unit,  36, 0.030),
 	},
