@@ -70,7 +70,7 @@ Bloom.Threshold = 1.5
 
 -- // Cuanto se acerca la ola (0 = lejos, 1 = encima)
 local Danger = 0
-local SAMPLE_OFFSETS = { 0, 300, 600, 900 }
+local SAMPLE_OFFSETS = { 0, 800, 1600, 2400 } -- // v07 (antes 0,300,600,900): la ola ahora es ~2.9 veces mas ancha
 
 RunService.RenderStepped:Connect(function(dt)
 	local cfg = Gerstner.GIANT_CONFIG
