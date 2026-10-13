@@ -164,6 +164,7 @@ return {
 		VORTEX = Color3.fromRGB(18, 28, 33);
 		SHORE = Color3.fromRGB(60, 70, 75)
 	},
+	SURFACE_APPEARANCE_COLOR = Color3.fromRGB(31, 45, 62), -- // v03: tinte del SurfaceAppearance del mar (AlphaMode = Transparency)
 	UV_SCROLL_SPEED = 1/30, -- // Mas lento = mar mas quieto
 	UV_SCROLL_DIRECTION = Vector2.new(1, 1),
 
