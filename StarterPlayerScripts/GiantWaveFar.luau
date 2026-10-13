@@ -111,7 +111,7 @@ local function CreateTile(EM: EditableMesh): MeshPart
 	Part.Anchored = true
 	Part.CanCollide, Part.CanTouch, Part.CanQuery, Part.CastShadow = false, false, false, false
 	Part.Material = Enum.Material.Granite
-	Part.RenderFidelity = Enum.RenderFidelity.Precise
+	pcall(function() Part.RenderFidelity = Enum.RenderFidelity.Precise end) -- // v06: Roblox ya no deja escribir RenderFidelity desde scripts normales (capability PluginOrOpenCloud)
 	Part.Color = Color3.fromRGB(255, 255, 255)
 
 	local Appearance = GetAppearance()

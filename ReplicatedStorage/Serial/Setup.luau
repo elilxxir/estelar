@@ -293,7 +293,7 @@ function Setup.GetPlaneFromEditableMesh(EM: EditableMesh, Name: string?): MeshPa
 	Plane.Anchored = true
 	Plane.CanCollide, Plane.CastShadow = false, false
 	Plane.Material = Enum.Material.Granite
-	Plane.RenderFidelity = Enum.RenderFidelity.Precise
+	pcall(function() Plane.RenderFidelity = Enum.RenderFidelity.Precise end) -- // v06: Roblox ya no deja escribir RenderFidelity desde scripts normales (capability PluginOrOpenCloud)
 	
 	local Appearance = ReplicatedStorage:FindFirstChild('Appearance')
 	if Appearance == nil then
@@ -499,7 +499,7 @@ function Setup.SetupSecondaryPlanes(EM: EditableMesh): { { MeshPart | Vector3 } 
 		Plane.Anchored = true
 		Plane.CanCollide, Plane.CastShadow = false, false
 		Plane.Material = Enum.Material.Granite
-		Plane.RenderFidelity = Enum.RenderFidelity.Precise
+		pcall(function() Plane.RenderFidelity = Enum.RenderFidelity.Precise end) -- // v06: Roblox ya no deja escribir RenderFidelity desde scripts normales (capability PluginOrOpenCloud)
 
 		local Appearance = ReplicatedStorage:FindFirstChild('Appearance')
 		if Appearance == nil then
