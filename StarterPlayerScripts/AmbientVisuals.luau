@@ -84,6 +84,7 @@ RunService.RenderStepped:Connect(function(dt)
 		near = math.max(near, Gerstner.ComputeGiantWave(sample, t).Y / cfg.Height)
 	end
 
+	near = math.clamp(near, 0, 1) -- // v13: las olas internas pueden pasar de Height o ser negativas
 	Danger += (near - Danger) * math.min(dt * 2, 1)
 
 	Atmosphere.Density = BASE.Density + (DANGER.Density - BASE.Density) * Danger

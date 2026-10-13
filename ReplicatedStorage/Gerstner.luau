@@ -146,13 +146,93 @@ local GIANT = {
 	Spacing = 7200, -- distancia entre pulsos en studs (v07, antes 5400). Segundos entre olas = Spacing / Speed = 160 s. Debe ser > ~9 * Width para que entre pulsos el mar quede plano
 	Start = -1800,  -- posicion de un pulso cuando el tiempo del servidor es multiplo de Spacing / Speed
 	Drop = 10,      -- studs que la ola lejana (GiantWaveFar) queda por debajo del mar para no chocar con sus olas pequenas
+
+	-- // v13: realismo. Todo es determinista (solo depende de la hora del servidor y de la posicion).
+	FrontScale = 0.8, -- // El frente es mas empinado: su ancho es Width * FrontScale
+	BackScale = 1.3,  -- // La parte de atras es mas larga y suave: Width * BackScale
+	SurgeAmp = 90,    -- // La ola acelera y frena: se adelanta / atrasa hasta SurgeAmp studs (velocidad ~ Speed +- 2*pi*SurgeAmp/SurgePeriod)
+	SurgePeriod = 47, -- // Segundos de un ciclo de aceleracion
+	-- // La cresta no es una pared recta: se curva. Las longitudes deben dividir 2000 (ancho de las piezas de GiantWaveFar)
+	CrestAmp1 = 150, CrestLen1 = 2000, CrestPhase1 = 0.7,
+	CrestAmp2 = 60, CrestLen2 = 1000, CrestPhase2 = 2.1,
+	-- // Ondulacion que recorre la cresta (solo en el plano, se desvanece hacia su borde)
+	CrestDynAmp = 40, CrestDynLen = 500, CrestDynSpeed = 40,
 }
 
 Gerstner.GIANT_CONFIG = GIANT
 
+-- // v13: olas dentro de la ola gigante. Su altura se escala con la de la ola (solo existen sobre ella).
+local RIPPLES: { { Direction: Vector3, K: number, Speed: number, Amp: number, Phase: number } } = {}
+do
+	local Defs = {
+		{ Dir = Vector3.new(1, 0, 0.3), Wavelength = 420, Amp = 38, Phase = 0.3 },
+		{ Dir = Vector3.new(0.9, 0, -0.5), Wavelength = 280, Amp = 24, Phase = 1.7 },
+		{ Dir = Vector3.new(0.7, 0, 0.7), Wavelength = 190, Amp = 14, Phase = 3.1 },
+		{ Dir = Vector3.new(1, 0, -0.15), Wavelength = 130, Amp = 8, Phase = 4.4 },
+	}
+	for _, Def in Defs do
+		local K = TwoPi / Def.Wavelength
+		table.insert(RIPPLES, { Direction = Def.Dir.Unit, K = K, Speed = sqrt(9.8 / K), Amp = Def.Amp, Phase = Def.Phase })
+	end
+end
+
+local GIANT_PERP = Vector3.new(-GIANT.Direction.Z, 0, GIANT.Direction.X) -- // Perpendicular a la direccion de avance (a lo largo de la cresta)
+
+local function Smoothstep(a: number, b: number, x: number): number
+	local u = clamp((x - a) / (b - a), 0, 1)
+	return u * u * (3 - 2 * u)
+end
+
+-- // Perfil de la ola (0 a 1) a distancia firmada w de su centro (w > 0 = por delante). Asimetrico: frente empinado, cola larga.
+-- // La ventana lo lleva a 0 antes de llegar al siguiente pulso, para que entre olas el mar quede plano.
+local function GiantFraction(w: number): number
+	local Scale = if w >= 0 then GIANT.FrontScale else GIANT.BackScale
+	local s = 1 / math.cosh(w / (GIANT.Width * Scale))
+	return s * s * (1 - Smoothstep(0.55, 1, abs(w) / (GIANT.Spacing / 2)))
+end
+
 -- // Posicion (a lo largo de Direction) de uno de los pulsos en el instante t. Los demas estan a +- k * Spacing.
+-- // v13: ademas se adelanta y atrasa (SurgeAmp), asi su velocidad no es constante.
 function Gerstner.GetGiantWaveCenter(t: number): number
-	return GIANT.Start + (GIANT.Speed * t) % GIANT.Spacing
+	return GIANT.Start + (GIANT.Speed * t) % GIANT.Spacing + GIANT.SurgeAmp * sin(TwoPi * t / GIANT.SurgePeriod)
+end
+
+-- // Altura de la ola gigante en Position, siendo w0 la distancia firmada al centro del pulso.
+-- // t = nil: solo la forma estatica (curvatura de la cresta), que es lo que dibuja GiantWaveFar.
+-- // Edge (0 a 1): cuanto de la parte dinamica (ondulacion de la cresta y olas internas) se aplica; 0 en el borde del plano.
+function Gerstner.GetGiantShape(w0: number, Position: Vector3, t: number?, Edge: number?): number
+	local f0 = GiantFraction(w0)
+	if f0 < 0.002 then
+		return GIANT.Height * f0
+	end
+
+	local v = GIANT_PERP:Dot(Position)
+	local Offset = GIANT.CrestAmp1 * sin(TwoPi * v / GIANT.CrestLen1 + GIANT.CrestPhase1)
+		+ GIANT.CrestAmp2 * sin(TwoPi * v / GIANT.CrestLen2 + GIANT.CrestPhase2)
+	local e = Edge or 1
+	local Live = t ~= nil and e > 0
+	if Live then
+		Offset += e * GIANT.CrestDynAmp * sin(TwoPi * (v - GIANT.CrestDynSpeed * (t :: number)) / GIANT.CrestDynLen)
+	end
+
+	-- // La curvatura se desvanece en las colas (peso 0 -> 1 entre f0 = 0 y 0.1), asi no hay saltos
+	local f = GiantFraction(w0 - Offset * Smoothstep(0, 0.1, f0))
+	local Height = GIANT.Height * f
+
+	if Live and f > 0.01 then
+		local tt = t :: number
+		local Ripple = 0
+		for _, Rp in RIPPLES do
+			Ripple += Rp.Amp * sin(Rp.K * (Rp.Direction:Dot(Position) - Rp.Speed * tt) + Rp.Phase)
+		end
+		Height += Ripple * f * e
+	end
+	return Height
+end
+
+-- // Altura estatica a distancia w del centro y posicion v a lo largo de la cresta (para GiantWaveFar).
+function Gerstner.GetGiantStaticHeight(w: number, v: number): number
+	return Gerstner.GetGiantShape(w, GIANT_PERP * v, nil, nil)
 end
 
 -- // EdgeScale (0 a 1): 1 = ola completa. Hacia 0 la ola se reduce solo hasta quedar GIANT.Drop studs mas baja,
@@ -161,10 +241,9 @@ function Gerstner.ComputeGiantWave(Position: Vector3, t: number, EdgeScale: numb
 	local Spacing = GIANT.Spacing
 	local d = GIANT.Direction:Dot(Position) - Gerstner.GetGiantWaveCenter(t)
 	local w = (d + Spacing / 2) % Spacing - Spacing / 2 -- // distancia al pulso mas cercano
-	local s = 1 / math.cosh(w / GIANT.Width)
-	local Height = GIANT.Height * s * s
+	local Height = Gerstner.GetGiantShape(w, Position, t, EdgeScale)
 	if EdgeScale ~= nil and EdgeScale < 1 then
-		Height -= math.min(Height, GIANT.Drop) * (1 - EdgeScale)
+		Height -= clamp(Height, 0, GIANT.Drop) * (1 - EdgeScale)
 	end
 	return v3new(0, Height, 0)
 end

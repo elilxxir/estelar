@@ -33,25 +33,28 @@ local Dir = CFG.Direction.Unit
 local Perp = Vector3.new(-Dir.Z, 0, Dir.X)
 local BaseY = GRID.PLANE_OFFSET.Y - CFG.Drop - (_settings.GIANT_FAR_EXTRA_DROP or 14) -- // v10: en el borde del plano la ola lejana coincidia con su superficie y asomaba cuando una ola pequena bajaba
 
--- // Altura de la ola a distancia s de su centro (igual que Gerstner.ComputeGiantWave)
-local function Profile(s: number): number
-	local c = 1 / math.cosh(s / CFG.Width)
-	return CFG.Height * c * c
-end
+local STEP_V = 100 -- // v13: studs entre vertices a lo ancho (la cresta ahora se curva, asi que hay que dibujarla)
 
 -- // Malla de la pieza m (m = -1, 0, 1 son los tramos de la ola, de TILE_LENGTH studs cada uno).
 -- // La malla se centra en Y para que el centro de la pieza coincida con el centro de su caja, y asi su posicion sea exacta.
+-- // v13: es una rejilla (antes eran 2 vertices a lo ancho). La curvatura de la cresta tiene periodo que divide TILE_WIDTH,
+-- // asi todas las piezas a lo ancho son iguales y encajan entre si.
 local function BuildMesh(m: number): (EditableMesh?, number)
 	local Half = TILE_LENGTH / 2
 	local Columns = math.round(TILE_LENGTH / STEP)
+	local Rows = math.round(TILE_WIDTH / STEP_V)
 
 	local Heights = {}
 	local MinG, MaxG = math.huge, -math.huge
 	for i = 0, Columns do
-		local g = Profile(m * TILE_LENGTH - Half + i * STEP)
-		Heights[i] = g
-		MinG = math.min(MinG, g)
-		MaxG = math.max(MaxG, g)
+		local w = m * TILE_LENGTH - Half + i * STEP
+		Heights[i] = {}
+		for j = 0, Rows do
+			local g = Gerstner.GetGiantStaticHeight(w, -TILE_WIDTH / 2 + j * STEP_V)
+			Heights[i][j] = g
+			MinG = math.min(MinG, g)
+			MaxG = math.max(MaxG, g)
+		end
 	end
 
 	-- // Si este tramo nunca llega a asomar sobre el mar (queda mas de Drop/2 por debajo), no hace falta dibujarlo
@@ -65,18 +68,19 @@ local function BuildMesh(m: number): (EditableMesh?, number)
 	local Ids = {}
 	for i = 0, Columns do
 		local x = -Half + i * STEP
-		local y = Heights[i] - Mid
-		Ids[i] = {
-			EM:AddVertex(Vector3.new(x, y, -TILE_WIDTH / 2)),
-			EM:AddVertex(Vector3.new(x, y, TILE_WIDTH / 2)),
-		}
+		Ids[i] = {}
+		for j = 0, Rows do
+			Ids[i][j] = EM:AddVertex(Vector3.new(x, Heights[i][j] - Mid, -TILE_WIDTH / 2 + j * STEP_V))
+		end
 	end
 	for i = 0, Columns - 1 do
-		-- // Mismo orden de vertices que los planos secundarios de Setup (cara hacia arriba)
-		local a, c = Ids[i][1], Ids[i][2]
-		local b, d = Ids[i + 1][1], Ids[i + 1][2]
-		EM:AddTriangle(a, c, d)
-		EM:AddTriangle(d, b, a)
+		for j = 0, Rows - 1 do
+			-- // Mismo orden de vertices que los planos secundarios de Setup (cara hacia arriba)
+			local a, c = Ids[i][j], Ids[i][j + 1]
+			local b, d = Ids[i + 1][j], Ids[i + 1][j + 1]
+			EM:AddTriangle(a, c, d)
+			EM:AddTriangle(d, b, a)
+		end
 	end
 
 	for _, UVId in EM:GetUVs() do
