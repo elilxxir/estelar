@@ -24,7 +24,12 @@ local Propulsor = Boat:WaitForChild('Propulsor')
 -- // Control vertical: LinearVelocity (rigido) en vez de BodyPosition (resorte con fuerza limitada, que rebota con olas muy rapidas).
 -- // velocidad vertical = velocidad de la ola (anticipada) + VERTICAL_GAIN * error de altura
 local Mass = Boat.Main.AssemblyMass
-local VERTICAL_GAIN = 10 -- // 1/s. Mas alto = sigue la ola mas pegado, mas bajo = mas suave
+local VERTICAL_GAIN = 6 -- // 1/s. Mas alto = sigue la ola mas pegado, mas bajo = mas suave
+local VERTICAL_SMOOTHING = 0.08 -- // Segundos de filtro sobre la velocidad vertical (mas alto = mas suave, mas retraso)
+local MAX_VERTICAL_ACCEL = 600 -- // studs/s^2. Limite de aceleracion vertical, evita tirones
+local TILT_SMOOTHING = 0.15 -- // Segundos de filtro sobre la inclinacion (pitch/roll)
+local SmoothedVerticalSpeed = 0
+local SmoothedOrientation = CFrame.identity
 local MAX_VERTICAL_SPEED = 600 -- // studs/s
 local MAX_VERTICAL_FORCE = Mass * workspace.Gravity * 30
 
@@ -273,13 +278,21 @@ game:GetService('RunService').PostSimulation:Connect(function(dt)
 	VehicleSeat.BodyVelocity.Velocity = Flat * CurrentSpeed
 	UpdateSoundLayers(CurrentSpeed / MAX_SPEED)
 
-	local AssemblyVelocity = VehicleSeat.AssemblyLinearVelocity
-	local Height, Orientation, Depth, WaveRate = BoatManager.CalculateBuoyancy(Boat.Main.CenterOfMass, Boat.Main.Center.WorldPosition, BuoyancyPoints, boatLength, boatWidth, baseHeight, CurrentZoneInfo, nil, Vector3.new(AssemblyVelocity.X, 0, AssemblyVelocity.Z))
+	-- // Se usa la velocidad horizontal ordenada (no la medida), porque la medida fluctua y ese ruido se multiplica por la pendiente.
+	local Height, Orientation, Depth, WaveRate = BoatManager.CalculateBuoyancy(Boat.Main.CenterOfMass, Boat.Main.Center.WorldPosition, BuoyancyPoints, boatLength, boatWidth, baseHeight, CurrentZoneInfo, nil, Flat * CurrentSpeed)
 	if Height ~= Vector3.zero then
 		local HeightError = Height.Y - VehicleSeat.Position.Y
-		VerticalVelocity.VectorVelocity = Vector3.new(0, math.clamp(WaveRate + VERTICAL_GAIN * HeightError, -MAX_VERTICAL_SPEED, MAX_VERTICAL_SPEED), 0)
+		local Desired = math.clamp(WaveRate + VERTICAL_GAIN * HeightError, -MAX_VERTICAL_SPEED, MAX_VERTICAL_SPEED)
+
+		-- // Filtro + limite de aceleracion
+		local Smoothed = SmoothedVerticalSpeed + (Desired - SmoothedVerticalSpeed) * (1 - math.exp(-dt / VERTICAL_SMOOTHING))
+		local MaxStep = MAX_VERTICAL_ACCEL * dt
+		SmoothedVerticalSpeed += math.clamp(Smoothed - SmoothedVerticalSpeed, -MaxStep, MaxStep)
+		VerticalVelocity.VectorVelocity = Vector3.new(0, SmoothedVerticalSpeed, 0)
+
+		SmoothedOrientation = SmoothedOrientation:Lerp(Orientation, 1 - math.exp(-dt / TILT_SMOOTHING))
 	end
-	VehicleSeat.BodyGyro.CFrame = CFrame.fromEulerAnglesXYZ(0, CurrentRotation, 0) * Orientation
+	VehicleSeat.BodyGyro.CFrame = CFrame.fromEulerAnglesXYZ(0, CurrentRotation, 0) * SmoothedOrientation
 	if ZoneAccumulated >= 3 then
 		ZoneAccumulated = 0
 		UpdateZoneMultipliers()
