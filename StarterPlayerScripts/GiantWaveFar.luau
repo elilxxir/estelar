@@ -117,7 +117,7 @@ local function CreateTile(EM: EditableMesh): MeshPart
 	local Appearance = GetAppearance()
 	if Appearance then
 		local ClonedAppearance = Appearance:Clone()
-		ClonedAppearance.AlphaMode = Enum.AlphaMode.Transparency -- // v07: igual que los planos del oceano (Setup)
+		ClonedAppearance.AlphaMode = Enum.AlphaMode.Overlay -- // v08 (antes Transparency): igual que los planos del oceano (Setup)
 		ClonedAppearance.Color = _settings.SURFACE_APPEARANCE_COLOR or Color3.fromRGB(31, 45, 62)
 		ClonedAppearance.Parent = Part
 	end
