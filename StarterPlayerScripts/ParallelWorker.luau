@@ -26,12 +26,14 @@ local v3zero = Vector3.zero
 local v3one = Vector3.one
 
 local EDGE_HALF = (_settings.GRID_SETTINGS.Width - 1) * _settings.GRID_SETTINGS.Padding / 2
+local EDGE_SLACK = _settings.GIANT_EDGE_SLACK -- // Margen para que el plano (que se reposiciona cada 0.25 s) siempre cubra la zona sin desvanecer
 local EDGE_FADE = _settings.GIANT_EDGE_FADE
 
--- // Escala (0..1) de la ola gigante segun la cercania al borde del plano, para no dejar un acantilado contra los planos planos
-local function GetEdgeScale(vertex: Vector3): number
-	local edge = math.max(math.abs(vertex.X), math.abs(vertex.Z))
-	local e = math.clamp((EDGE_HALF - edge) / EDGE_FADE, 0, 1)
+-- // Escala (0..1) de la ola gigante cerca del borde del plano. Se mide en el mundo respecto a la camara (no respecto al plano),
+-- // asi no cambia de golpe cada vez que el plano se reposiciona. Ver Gerstner.ComputeGiantWave.
+local function GetEdgeScale(SeaPosition: Vector3, CameraXZ: Vector3): number
+	local edge = math.max(math.abs(SeaPosition.X - CameraXZ.X), math.abs(SeaPosition.Z - CameraXZ.Z))
+	local e = math.clamp((EDGE_HALF - EDGE_SLACK - edge) / EDGE_FADE, 0, 1)
 	return e * e * (3 - 2 * e)
 end
 
@@ -217,14 +219,14 @@ Actor:BindToMessage('Compute', function(waves, Plane: MeshPart, EditableMesh: Ed
 						-- // the "goal position" of the lerp, otherwise it will look very desynced
 
 						if LastPlanePosition ~= ObjectPosition or Info.Lerping == false or ChunkData.Rendering == false then
-							local Transform = GerstnerWave.ComputeTransform(waves, SeaPosition, t, PhaseMultiplier, SpeedMultiplier, AmplitudeMultiplier, GetEdgeScale(vertex))
+							local Transform = GerstnerWave.ComputeTransform(waves, SeaPosition, t, PhaseMultiplier, SpeedMultiplier, AmplitudeMultiplier, GetEdgeScale(SeaPosition, CameraXZ))
 							local Position = vertex + (Transform)
 
 							PreviousGoal = Position
 						end
 
 						local Transform = 
-							GerstnerWave.ComputeTransform(waves, SeaPosition, t + (dt * LERP_MAX_FRAMES), PhaseMultiplier, SpeedMultiplier, AmplitudeMultiplier, GetEdgeScale(vertex))
+							GerstnerWave.ComputeTransform(waves, SeaPosition, t + (dt * LERP_MAX_FRAMES), PhaseMultiplier, SpeedMultiplier, AmplitudeMultiplier, GetEdgeScale(SeaPosition, CameraXZ))
 
 						Info.GoalPosition = vertex + Transform
 						Info.LastPosition = PreviousGoal or EditableMesh:GetPosition(VertexId)
@@ -297,7 +299,7 @@ Actor:BindToMessage('Compute', function(waves, Plane: MeshPart, EditableMesh: Ed
 				local SeaPosition = ObjectPosition + vertex
 				local ShoreTransparency = Helper.GetVertexTransparency(SeaPosition, VertexTransparencyArray, NormalizedDistanceToIsland)
 
-				local Transform = GerstnerWave.ComputeTransform(waves, SeaPosition, t, PhaseMultiplier, SpeedMultiplier, AmplitudeMultiplier, GetEdgeScale(vertex))
+				local Transform = GerstnerWave.ComputeTransform(waves, SeaPosition, t, PhaseMultiplier, SpeedMultiplier, AmplitudeMultiplier, GetEdgeScale(SeaPosition, CameraXZ))
 				local UpdatedUV = Helper.GetUV(Info.UV, t)
 				local FinalPosition = vertex + Transform
 

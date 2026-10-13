@@ -100,6 +100,13 @@ local function BrownianMotionWaves(Amount: number): { GerstnerWave.WaveInfo }
 	return Results
 end
 
+-- // Ola gigante lejana (StarterPlayerScripts/GiantWaveFar). Si se desactiva, el plano desvanece la ola por completo hacia su borde
+-- // (Drop = infinito en Gerstner.ComputeGiantWave), para no dejar un acantilado contra los planos secundarios.
+local GIANT_FAR_WAVE = true
+if GIANT_FAR_WAVE == false then
+	GerstnerWave.GIANT_CONFIG.Drop = math.huge
+end
+
 return {
 	DEBUG = true,
 	GRID_SETTINGS = {
@@ -171,7 +178,9 @@ return {
 	-- // Known issues thread: https://devforum.roblox.com/t/client-beta-in-experience-mesh-image-apis-now-available-in-published-experiences/3267293
 	DISABLE_CHUNK_CULLING = true, -- // Actualiza todos los chunks aunque no esten en pantalla (evita vertices congelados / estirados)
 	FORCE_FULL_QUALITY = true, -- // Todos los vertices se calculan cada frame (sin LOD por lerp)
-	GIANT_EDGE_FADE = 350, -- // Studs de desvanecimiento de la ola gigante hacia el borde del plano
+	GIANT_EDGE_FADE = 350, -- // Studs en los que la ola gigante del plano baja hacia la ola lejana (GiantWaveFar)
+	GIANT_EDGE_SLACK = 150, -- // Margen respecto al borde del plano donde termina ese descenso
+	GIANT_FAR_WAVE = GIANT_FAR_WAVE, -- // (editar arriba, junto a la variable local) Dibuja la ola gigante mas alla del plano (StarterPlayerScripts/GiantWaveFar). false = desactivado
 
 	FRUSTUM_CULLING_FIX = true; -- // See known issues #7
 	

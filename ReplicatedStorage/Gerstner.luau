@@ -136,24 +136,37 @@ function Gerstner.new(Direction: Vector3, WaveLength: number, Steepness: number,
 	}
 end
 
--- // Ola gigante periodica (pulso sech^2). Se calcula solo con el tiempo del servidor,
--- // asi cliente y servidor coinciden sin eventos.
+-- // Ola gigante: tren continuo de pulsos sech^2, separados Spacing studs. Se calcula solo con el tiempo del servidor,
+-- // asi cliente y servidor coinciden sin eventos. Al ser un tren no hay saltos: cuando un pulso se va, el siguiente ya viene.
 local GIANT = {
 	Direction = Vector3.new(1, 0, 0), -- direccion de avance (unitario)
 	Height = 700,   -- altura maxima en studs
 	Width = 280,    -- ancho del pulso (menor = mas empinada)
 	Speed = 60,     -- studs/s
-	Period = 90,    -- segundos entre olas
-	Start = -1800,  -- distancia inicial detras del origen
+	Spacing = 5400, -- distancia entre pulsos en studs (segundos entre olas = Spacing / Speed)
+	Start = -1800,  -- posicion de un pulso cuando el tiempo del servidor es multiplo de Spacing / Speed
+	Drop = 8,       -- studs que la ola lejana (GiantWaveFar) queda por debajo del mar para no chocar con sus olas pequenas
 }
 
 Gerstner.GIANT_CONFIG = GIANT
 
-function Gerstner.ComputeGiantWave(Position: Vector3, t: number): Vector3
-	local center = GIANT.Start + GIANT.Speed * (t % GIANT.Period)
-	local d = GIANT.Direction:Dot(Position) - center
-	local s = 1 / math.cosh(d / GIANT.Width)
-	return v3new(0, GIANT.Height * s * s, 0)
+-- // Posicion (a lo largo de Direction) de uno de los pulsos en el instante t. Los demas estan a +- k * Spacing.
+function Gerstner.GetGiantWaveCenter(t: number): number
+	return GIANT.Start + (GIANT.Speed * t) % GIANT.Spacing
+end
+
+-- // EdgeScale (0 a 1): 1 = ola completa. Hacia 0 la ola se reduce solo hasta quedar GIANT.Drop studs mas baja,
+-- // que es donde la retoma la ola lejana. Asi no hay acantilado ni desaparicion brusca en el borde del plano.
+function Gerstner.ComputeGiantWave(Position: Vector3, t: number, EdgeScale: number?): Vector3
+	local Spacing = GIANT.Spacing
+	local d = GIANT.Direction:Dot(Position) - Gerstner.GetGiantWaveCenter(t)
+	local w = (d + Spacing / 2) % Spacing - Spacing / 2 -- // distancia al pulso mas cercano
+	local s = 1 / math.cosh(w / GIANT.Width)
+	local Height = GIANT.Height * s * s
+	if EdgeScale ~= nil and EdgeScale < 1 then
+		Height -= math.min(Height, GIANT.Drop) * (1 - EdgeScale)
+	end
+	return v3new(0, Height, 0)
 end
 
 --[[
@@ -166,7 +179,7 @@ end
 	<strong>amplitudeMulti:</strong> The amplitude multiplier for the wave, used for zone / island parameters.
 	
 ]]
-function Gerstner.ComputeTransform( Waves: { WaveInfo }, Position: Vector3, t: number, phaseMulti: number?, speedMulti: number?, amplitudeMulti: number?, giantScale: number? ): Vector3
+function Gerstner.ComputeTransform( Waves: { WaveInfo }, Position: Vector3, t: number, phaseMulti: number?, speedMulti: number?, amplitudeMulti: number?, giantScale: number? ): Vector3 -- // giantScale = EdgeScale de ComputeGiantWave
 	local Transform = v3zero
 	local phaseMulti = phaseMulti:: number or 1
 	local speedMulti = speedMulti:: number or 1
@@ -177,10 +190,7 @@ function Gerstner.ComputeTransform( Waves: { WaveInfo }, Position: Vector3, t: n
 		Transform += Gerstner.ComputeWave(Position, t, waveNumber, waveSpeed, waveAmplitude, Wave.Direction)
 	end
 
-	local giantScale = giantScale:: number or 1
-	if giantScale > 0 then
-		Transform += Gerstner.ComputeGiantWave(Position, t) * giantScale
-	end
+	Transform += Gerstner.ComputeGiantWave(Position, t, giantScale)
 	return Transform
 end
 
