@@ -172,7 +172,7 @@ return {
 	DEPTH_RAY_LENGTH = Vector3.new(0, -15, 0),
 	DEPTH_RAY_OFFSET = Vector3.new(0, 5, 0),
 
-	WHITECAP_HEIGHT = 60,
+	WHITECAP_HEIGHT = math.huge, -- // v09: sin espuma (antes 60). La ola gigante superaba ese umbral y se pintaba de blanco
 	SHORE_TRANSPARENCY = 0.2,
 
 	-- // DEBUG
