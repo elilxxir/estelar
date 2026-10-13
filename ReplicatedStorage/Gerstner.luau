@@ -145,7 +145,7 @@ local GIANT = {
 	Speed = 60,     -- studs/s
 	Spacing = 5400, -- distancia entre pulsos en studs (segundos entre olas = Spacing / Speed)
 	Start = -1800,  -- posicion de un pulso cuando el tiempo del servidor es multiplo de Spacing / Speed
-	Drop = 8,       -- studs que la ola lejana (GiantWaveFar) queda por debajo del mar para no chocar con sus olas pequenas
+	Drop = 10,      -- studs que la ola lejana (GiantWaveFar) queda por debajo del mar para no chocar con sus olas pequenas
 }
 
 Gerstner.GIANT_CONFIG = GIANT
