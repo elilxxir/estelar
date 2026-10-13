@@ -28,7 +28,7 @@ local MAX_TILT = 0.8 -- // Inclinacion maxima (radianes) para que la nave no vue
 
 -- // Altura de la ola en los 4 puntos de la nave. HeightLookup devuelve -1 si falla:
 -- // esos puntos se reemplazan por el promedio de los validos. Devuelve nil si fallan todos.
-local function SampleHeights(Points: { Attachment }, ZoneInfo: ZONE_INFO, TimeOffset: number, Shift: Vector3?): { number }?
+local function SampleHeights(Points: { { WorldPosition: Vector3 } }, ZoneInfo: ZONE_INFO, TimeOffset: number, Shift: Vector3?): { number }?
 	local Heights: { number } = {}
 	local Sum, Count = 0, 0
 	for i = 1, 4 do
@@ -58,7 +58,7 @@ end
 -- // Devuelve (altura objetivo, orientacion, profundidad, velocidad vertical de la ola).
 -- // La altura objetivo se calcula con LeadTime segundos de adelanto (opcional).
 -- // Si no se pudo calcular la ola devuelve Vector3.zero (el llamador debe conservar el objetivo anterior).
-function BoatManager.CalculateBuoyancy(CenterOfMass: Vector3, Bottom: Vector3, Points: { Attachment }, Length: number, Width: number, Height: number, ZoneInfo: ZONE_INFO, LeadTime: number?, Velocity: Vector3?): (Vector3, CFrame, number, number)
+function BoatManager.CalculateBuoyancy(CenterOfMass: Vector3, Bottom: Vector3, Points: { { WorldPosition: Vector3 } }, Length: number, Width: number, Height: number, ZoneInfo: ZONE_INFO, LeadTime: number?, Velocity: Vector3?): (Vector3, CFrame, number, number)
 	local Now = SampleHeights(Points, ZoneInfo, 0)
 	if Now == nil then
 		return Vector3.zero, CFrame.identity, 0, 0

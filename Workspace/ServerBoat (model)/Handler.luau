@@ -1,61 +1,78 @@
--- script hijo del modelo ServerBoat 
+-- script hijo del modelo ServerBoat
+-- La nave se mueve con BoatDrive (sin fisica). Con piloto la mueve su cliente (StarterPlayerScripts/BoatDriver);
+-- este script solo la mantiene flotando cuando esta vacia y maneja sonidos y efectos.
 
 --!native
 --!optimize 2
+local Players = game:GetService('Players')
+local RunService = game:GetService('RunService')
 local Boat = script.Parent
-local HeightLookup = require(game.ReplicatedStorage.Gerstner.HeightLookup)
+local BoatDrive = require(game.ReplicatedStorage.Gerstner.Serial.BoatDrive)
 local ZoneManager = require(game.ReplicatedStorage.Gerstner.Serial.ZoneManager)
-local BoatManager = require(game.ReplicatedStorage.Gerstner.Serial.BoatManager)
 Boat:WaitForChild('Main')
 workspace.Camera.CameraType = Enum.CameraType.Track
-local BuoyancyPoints = {
-	[1] = Boat.Main.TopLeft,
-	[2] = Boat.Main.TopRight,
-	[3] = Boat.Main.BottomLeft,
-	[4] = Boat.Main.BottomRight,
-}
-local boatWidth = Boat.Main.Size.X
-local boatLength = Boat.Main.Size.Z
-local baseHeight = Boat.Main.Size.Y / 2
-local DRAG_COEFFICIENT = 0.15
 local VehicleSeat = Boat:WaitForChild('VehicleSeat')
 local Propulsor = Boat:WaitForChild('Propulsor')
+local MAX_SPEED = BoatDrive.MAX_SPEED
 
--- // Control vertical: LinearVelocity (rigido) en vez de BodyPosition (resorte con fuerza limitada, que rebota con olas muy rapidas).
--- // velocidad vertical = velocidad de la ola (anticipada) + VERTICAL_GAIN * error de altura
-local Mass = Boat.Main.AssemblyMass
-local VERTICAL_GAIN = 6 -- // 1/s. Mas alto = sigue la ola mas pegado, mas bajo = mas suave
-local VERTICAL_SMOOTHING = 0.08 -- // Segundos de filtro sobre la velocidad vertical (mas alto = mas suave, mas retraso)
-local MAX_VERTICAL_ACCEL = 600 -- // studs/s^2. Limite de aceleracion vertical, evita tirones
-local TILT_SMOOTHING = 0.15 -- // Segundos de filtro sobre la inclinacion (pitch/roll)
-local SmoothedVerticalSpeed = 0
-local SmoothedOrientation = CFrame.identity
-local MAX_VERTICAL_SPEED = 600 -- // studs/s
-local MAX_VERTICAL_FORCE = Mass * workspace.Gravity * 30
-
-VehicleSeat.BodyPosition.MaxForce = Vector3.zero -- // desactivado, lo reemplaza VerticalVelocity
-
-local VerticalAttachment = Instance.new('Attachment')
-VerticalAttachment.Name = 'VerticalAttachment'
-VerticalAttachment.Parent = Boat.Main
-VerticalAttachment.WorldPosition = Boat.Main.CenterOfMass
-
-local VerticalVelocity = Instance.new('LinearVelocity')
-VerticalVelocity.Name = 'VerticalVelocity'
-VerticalVelocity.Attachment0 = VerticalAttachment
-VerticalVelocity.RelativeTo = Enum.ActuatorRelativeTo.World
-VerticalVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
-VerticalVelocity.ForceLimitMode = Enum.ForceLimitMode.PerAxis
-VerticalVelocity.MaxAxesForce = Vector3.new(0, MAX_VERTICAL_FORCE, 0)
-VerticalVelocity.VectorVelocity = Vector3.zero
-VerticalVelocity.Parent = Boat.Main
-
--- // El BodyVelocity solo debe mover la nave en horizontal; la altura la controla VerticalVelocity.
-do
-	local BV = VehicleSeat.BodyVelocity
-	BV.MaxForce = Vector3.new(BV.MaxForce.X, 0, BV.MaxForce.Z)
+-- // Los controladores fisicos antiguos ya no se usan: BoatDrive coloca la nave directamente.
+for _, Name in { 'BodyPosition', 'BodyVelocity', 'BodyGyro' } do
+	local Controller = VehicleSeat:FindFirstChild(Name)
+	if Controller then
+		Controller:Destroy()
+	end
 end
-VehicleSeat:SetNetworkOwner(nil)
+
+-- // Fuerza que cancela la gravedad, para que la nave no caiga mientras cambia de dueno de fisica.
+do
+	local Attachment = Instance.new('Attachment')
+	Attachment.Name = 'AntiGravityAttachment'
+	Attachment.Parent = Boat.Main
+	Attachment.WorldPosition = Boat.Main.CenterOfMass
+
+	local Force = Instance.new('VectorForce')
+	Force.Name = 'AntiGravity'
+	Force.Attachment0 = Attachment
+	Force.RelativeTo = Enum.ActuatorRelativeTo.World
+	Force.ApplyAtCenterOfMass = true
+	Force.Force = Vector3.new(0, Boat.Main.AssemblyMass * workspace.Gravity, 0)
+	Force.Parent = Boat.Main
+end
+
+local Drive = BoatDrive.new(Boat, VehicleSeat)
+pcall(function()
+	VehicleSeat:SetNetworkOwner(nil)
+end)
+
+-- // El piloto es el dueno de la fisica de la nave: asi la ve sincronizada con la ola.
+VehicleSeat:GetPropertyChangedSignal('Occupant'):Connect(function()
+	local Occupant = VehicleSeat.Occupant
+	if Occupant ~= nil then
+		local Driver = Players:GetPlayerFromCharacter(Occupant.Parent)
+		if Driver then
+			pcall(function()
+				VehicleSeat:SetNetworkOwner(Driver)
+			end)
+		end
+	else
+		pcall(function()
+			VehicleSeat:SetNetworkOwner(nil)
+		end)
+		Drive = BoatDrive.new(Boat, VehicleSeat) -- // Retoma desde donde quedo la nave
+	end
+end)
+
+ZoneManager.ZoneUpdated:Connect(function()
+	BoatDrive.UpdateZone(Drive)
+end)
+
+-- // Sin piloto, el servidor mueve la nave (queda flotando sobre la ola)
+RunService.PreSimulation:Connect(function(dt)
+	if VehicleSeat.Occupant == nil then
+		BoatDrive.Step(Drive, dt, 0, 0)
+		BoatDrive.Apply(Drive)
+	end
+end)
 
 -- ============================================================
 --  CAPAS DE SONIDO (loops, escalan con velocidad)
@@ -184,34 +201,17 @@ local function TryPlayOneShot(sound, cooldownRef, dt)
 	return cooldownRef
 end
 
--- ── ZONAS ────────────────────────────────────────────────────
-local CurrentZoneInfo = {
-	SpeedMultiplier = 1;
-	PhaseMultiplier = 1;
-	AmplitudeMultiplier = 1;
-	CURRENT_ZONE = nil;
-}
-local function UpdateZoneMultipliers()
-	CurrentZoneInfo.CURRENT_ZONE = ZoneManager:GetZoneParameters(Boat.Main.Position)
-end
-
-local Accumulated = 0
-local ZoneAccumulated = 0
-local CurrentRotation = 0
-local CurrentSpeed = 0
-local MAX_SPEED = 200
-local ACCELERATION = 10
-local DECELERATION = 15
+-- ============================================================
+--  EFECTOS Y SONIDO
+-- ============================================================
 
 local function SetPropulsorEffects(enabled)
 	for _, effect in ipairs(Propulsor:GetChildren()) do
 		if effect:IsA("ParticleEmitter") or effect:IsA("Trail") or effect:IsA("Smoke") or effect:IsA("Fire") or effect:IsA("Sparkles") then
 			effect.Enabled = enabled
-
 		end
 	end
 end
-
 
 local function UpdateSoundLayers(speedRatio)
 	for _, entry in ipairs(SoundInstances) do
@@ -222,45 +222,31 @@ local function UpdateSoundLayers(speedRatio)
 	end
 end
 
-game:GetService('RunService').PostSimulation:Connect(function(dt)
-	Accumulated += dt
-	ZoneAccumulated += dt
-	local CURRENT_ZONE = CurrentZoneInfo.CURRENT_ZONE
-	if CURRENT_ZONE ~= nil then
-		local Link: BasePart? = CURRENT_ZONE.Link
-		if CURRENT_ZONE.Type ~= 'Whirlpool' then
-			if (CURRENT_ZONE.Link) then
-				local Position = CURRENT_ZONE.Link.Position
-				CurrentZoneInfo.SpeedMultiplier, CurrentZoneInfo.PhaseMultiplier, CurrentZoneInfo.AmplitudeMultiplier = ZoneManager:GetZoneMultipliers(Boat.Main.Position, Position, CURRENT_ZONE)
-			else
-				local IslandPosition, Radius = CURRENT_ZONE.Island.Center.Position, CURRENT_ZONE.Radius / 2
-				CurrentZoneInfo.SpeedMultiplier, CurrentZoneInfo.PhaseMultiplier, CurrentZoneInfo.AmplitudeMultiplier = ZoneManager:GetIslandMultipliers(Boat.Main.Position, IslandPosition, Radius)
-			end
-		end
-	end
-	if VehicleSeat.Steer == 1 then
-		CurrentRotation -= math.rad(0.5)
-	elseif VehicleSeat.Steer == -1 then
-		CurrentRotation += math.rad(0.5)
-	end
+-- // La velocidad se mide con el movimiento real de la nave (el piloto la mueve en su cliente)
+local MeasuredSpeed = 0
+local LastPosition = VehicleSeat.Position
+
+RunService.PostSimulation:Connect(function(dt)
+	local Position = VehicleSeat.Position
+	local Moved = Vector3.new(Position.X - LastPosition.X, 0, Position.Z - LastPosition.Z).Magnitude
+	LastPosition = Position
+	MeasuredSpeed += (Moved / dt - MeasuredSpeed) * (1 - math.exp(-dt / 0.3))
 
 	local throttle = VehicleSeat.Throttle
 
 	if throttle == 1 then
-		CurrentSpeed = math.min(CurrentSpeed + ACCELERATION * dt, MAX_SPEED)
 		SetPropulsorEffects(true)
 
-		-- Sonido único al empezar a acelerar
+		-- Sonido unico al empezar a acelerar
 		if lastThrottle ~= 1 then
 			accelCooldown = TryPlayOneShot(AccelSound, accelCooldown, dt)
 		else
 			accelCooldown = math.max(accelCooldown - dt, 0)
 		end
 	else
-		CurrentSpeed = math.max(CurrentSpeed - DECELERATION * dt, 0)
 		SetPropulsorEffects(false)
 
-		-- Sonido único al soltar el acelerador
+		-- Sonido unico al soltar el acelerador
 		if lastThrottle == 1 then
 			brakeCooldown = TryPlayOneShot(BrakeSound, brakeCooldown, dt)
 		else
@@ -269,35 +255,5 @@ game:GetService('RunService').PostSimulation:Connect(function(dt)
 	end
 
 	lastThrottle = throttle
-
-	local Look = VehicleSeat.CFrame.LookVector
-	local Flat = Vector3.new(Look.X, 0, Look.Z)
-	if Flat.Magnitude > 0.01 then
-		Flat = Flat.Unit
-	end
-	VehicleSeat.BodyVelocity.Velocity = Flat * CurrentSpeed
-	UpdateSoundLayers(CurrentSpeed / MAX_SPEED)
-
-	-- // Se usa la velocidad horizontal ordenada (no la medida), porque la medida fluctua y ese ruido se multiplica por la pendiente.
-	local Height, Orientation, Depth, WaveRate = BoatManager.CalculateBuoyancy(Boat.Main.CenterOfMass, Boat.Main.Center.WorldPosition, BuoyancyPoints, boatLength, boatWidth, baseHeight, CurrentZoneInfo, nil, Flat * CurrentSpeed)
-	if Height ~= Vector3.zero then
-		local HeightError = Height.Y - VehicleSeat.Position.Y
-		local Desired = math.clamp(WaveRate + VERTICAL_GAIN * HeightError, -MAX_VERTICAL_SPEED, MAX_VERTICAL_SPEED)
-
-		-- // Filtro + limite de aceleracion
-		local Smoothed = SmoothedVerticalSpeed + (Desired - SmoothedVerticalSpeed) * (1 - math.exp(-dt / VERTICAL_SMOOTHING))
-		local MaxStep = MAX_VERTICAL_ACCEL * dt
-		SmoothedVerticalSpeed += math.clamp(Smoothed - SmoothedVerticalSpeed, -MaxStep, MaxStep)
-		VerticalVelocity.VectorVelocity = Vector3.new(0, SmoothedVerticalSpeed, 0)
-
-		SmoothedOrientation = SmoothedOrientation:Lerp(Orientation, 1 - math.exp(-dt / TILT_SMOOTHING))
-	end
-	VehicleSeat.BodyGyro.CFrame = CFrame.fromEulerAnglesXYZ(0, CurrentRotation, 0) * SmoothedOrientation
-	if ZoneAccumulated >= 3 then
-		ZoneAccumulated = 0
-		UpdateZoneMultipliers()
-	end
-end)
-ZoneManager.ZoneUpdated:Connect(function()
-	UpdateZoneMultipliers()
+	UpdateSoundLayers(math.clamp(MeasuredSpeed / MAX_SPEED, 0, 1))
 end)
