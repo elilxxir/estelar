@@ -55,6 +55,8 @@ local function SampleHeights(Points: { { WorldPosition: Vector3 } }, ZoneInfo: Z
 	return Heights
 end
 
+BoatManager.SampleHeights = SampleHeights
+
 -- // Devuelve (altura objetivo, orientacion, profundidad, velocidad vertical de la ola).
 -- // La altura objetivo se calcula con LeadTime segundos de adelanto (opcional).
 -- // Si no se pudo calcular la ola devuelve Vector3.zero (el llamador debe conservar el objetivo anterior).

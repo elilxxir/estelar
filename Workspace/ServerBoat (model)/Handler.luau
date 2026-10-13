@@ -69,7 +69,7 @@ end)
 -- // Sin piloto, el servidor mueve la nave (queda flotando sobre la ola)
 RunService.PreSimulation:Connect(function(dt)
 	if VehicleSeat.Occupant == nil then
-		BoatDrive.Step(Drive, dt, 0, 0)
+		BoatDrive.Step(Drive, dt, 0, 0, true)
 		BoatDrive.Apply(Drive)
 	end
 end)
