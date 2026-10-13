@@ -23,41 +23,81 @@ type ZONE_INFO = {
 
 local BoatManager = {}
 
-function BoatManager.CalculateBuoyancy(CenterOfMass: Vector3, Bottom: Vector3, Points: { Attachment }, Length: number, Width: number, Height: number, ZoneInfo: ZONE_INFO): (Vector3, CFrame, number)
-	local TopLeftHeight = HeightLookup.Lookup(Points[1].WorldPosition, "PRECISE", false, ZoneInfo.SpeedMultiplier, ZoneInfo.PhaseMultiplier, ZoneInfo.AmplitudeMultiplier, ZoneInfo.CURRENT_ZONE)
-	local TopRightHeight = HeightLookup.Lookup(Points[2].WorldPosition, "PRECISE", false, ZoneInfo.SpeedMultiplier, ZoneInfo.PhaseMultiplier, ZoneInfo.AmplitudeMultiplier, ZoneInfo.CURRENT_ZONE)
-	local BottomLeftHeight = HeightLookup.Lookup(Points[3].WorldPosition, "PRECISE", false, ZoneInfo.SpeedMultiplier, ZoneInfo.PhaseMultiplier, ZoneInfo.AmplitudeMultiplier, ZoneInfo.CURRENT_ZONE)
-	local BottomRightHeight = HeightLookup.Lookup(Points[4].WorldPosition, "PRECISE", false, ZoneInfo.SpeedMultiplier, ZoneInfo.PhaseMultiplier, ZoneInfo.AmplitudeMultiplier, ZoneInfo.CURRENT_ZONE)
+local RATE_PROBE = 0.1 -- // Segundos hacia el futuro para medir la velocidad vertical de la ola
+local MAX_TILT = 0.8 -- // Inclinacion maxima (radianes) para que la nave no vuelque en olas muy empinadas
 
-	local TotalHeight = (TopLeftHeight + TopRightHeight + BottomLeftHeight + BottomRightHeight)
-	
-	-- // Orientation
-	local Front = (TopLeftHeight + TopRightHeight) / 2
-	local Back = (BottomLeftHeight + BottomRightHeight) / 2
-	local Left = (TopLeftHeight + BottomLeftHeight) / 2
-	local Right = (TopRightHeight + BottomRightHeight) / 2
-	
-	local pitch = math.atan2(Front - Back, Length)
-	local roll = math.atan2(Right - Left, Width)
-	
-	local Orientation = CFrame.fromEulerAnglesXYZ(pitch, 0, roll)
-	
-	
-	local WaveHeightCenter = (TotalHeight / 4)
-	local Depth = WaveHeightCenter - Bottom.Y
-	if Depth > -0.5 then
-		local ClampedDepth = math.min(Depth, 0)
-		local TargetHeight = (WaveHeightCenter + ClampedDepth)
-		local RelativeSpeed = (CenterOfMass.Y - TargetHeight)
-		local DRAG = RelativeSpeed * DRAG_COEFFICIENT
-
-		local TargetY = (WaveHeightCenter + Height) - DRAG
-		return Vector3.new(0, TargetY, 0), Orientation, ClampedDepth
-
-	elseif Depth < -0.25 then
-		return Vector3.zero, Orientation, 0
+-- // Altura de la ola en los 4 puntos de la nave. HeightLookup devuelve -1 si falla:
+-- // esos puntos se reemplazan por el promedio de los validos. Devuelve nil si fallan todos.
+local function SampleHeights(Points: { Attachment }, ZoneInfo: ZONE_INFO, TimeOffset: number, Shift: Vector3?): { number }?
+	local Heights: { number } = {}
+	local Sum, Count = 0, 0
+	for i = 1, 4 do
+		local Position = Points[i].WorldPosition
+		if Shift ~= nil then
+			Position += Shift
+		end
+		local h = HeightLookup.Lookup(Position, "PRECISE", false, ZoneInfo.SpeedMultiplier, ZoneInfo.PhaseMultiplier, ZoneInfo.AmplitudeMultiplier, ZoneInfo.CURRENT_ZONE, TimeOffset)
+		Heights[i] = h
+		if h ~= -1 then
+			Sum += h
+			Count += 1
+		end
 	end
-	return Vector3.zero, Orientation, 0
+	if Count == 0 then
+		return nil
+	end
+	local Average = Sum / Count
+	for i = 1, 4 do
+		if Heights[i] == -1 then
+			Heights[i] = Average
+		end
+	end
+	return Heights
+end
+
+-- // Devuelve (altura objetivo, orientacion, profundidad, velocidad vertical de la ola).
+-- // La altura objetivo se calcula con LeadTime segundos de adelanto (opcional).
+-- // Si no se pudo calcular la ola devuelve Vector3.zero (el llamador debe conservar el objetivo anterior).
+function BoatManager.CalculateBuoyancy(CenterOfMass: Vector3, Bottom: Vector3, Points: { Attachment }, Length: number, Width: number, Height: number, ZoneInfo: ZONE_INFO, LeadTime: number?, Velocity: Vector3?): (Vector3, CFrame, number, number)
+	local Now = SampleHeights(Points, ZoneInfo, 0)
+	if Now == nil then
+		return Vector3.zero, CFrame.identity, 0, 0
+	end
+
+	-- // Orientation
+	local Front = (Now[1] + Now[2]) / 2
+	local Back = (Now[3] + Now[4]) / 2
+	local Left = (Now[1] + Now[3]) / 2
+	local Right = (Now[2] + Now[4]) / 2
+
+	local pitch = math.clamp(math.atan2(Front - Back, Length), -MAX_TILT, MAX_TILT)
+	local roll = math.clamp(math.atan2(Right - Left, Width), -MAX_TILT, MAX_TILT)
+	local Orientation = CFrame.fromEulerAnglesXYZ(pitch, 0, roll)
+
+	local Target = Now
+	if LeadTime ~= nil and LeadTime > 0 then
+		Target = SampleHeights(Points, ZoneInfo, LeadTime) or Now
+	end
+
+	local WaveHeightNow = (Now[1] + Now[2] + Now[3] + Now[4]) / 4
+	local WaveHeightTarget = (Target[1] + Target[2] + Target[3] + Target[4]) / 4
+
+	-- // Profundidad: positiva si el fondo esta bajo el agua, negativa si esta en el aire.
+	-- // La fuerza es siempre continua (sin apagarse), asi no hay rebotes por encendido/apagado.
+	local Depth = math.clamp(WaveHeightNow - Bottom.Y, -5, 20)
+
+
+	-- // Velocidad vertical de la ola en el punto al que va la nave: se mide la altura RATE_PROBE segundos en el futuro,
+	-- // desplazando los puntos con la velocidad horizontal de la nave. Incluye el movimiento de la ola y la pendiente que cruza la nave.
+	local VerticalRate = 0
+	if Velocity ~= nil then
+		local Probe = SampleHeights(Points, ZoneInfo, RATE_PROBE, Velocity * RATE_PROBE)
+		if Probe ~= nil then
+			VerticalRate = ((Probe[1] + Probe[2] + Probe[3] + Probe[4]) / 4 - WaveHeightNow) / RATE_PROBE
+		end
+	end
+
+	return Vector3.new(0, WaveHeightTarget + Height, 0), Orientation, Depth, VerticalRate
 end
 
 return BoatManager

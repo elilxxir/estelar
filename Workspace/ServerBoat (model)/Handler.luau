@@ -17,11 +17,39 @@ local BuoyancyPoints = {
 local boatWidth = Boat.Main.Size.X
 local boatLength = Boat.Main.Size.Z
 local baseHeight = Boat.Main.Size.Y / 2
-local MAX_FORCE = Boat.Main.AssemblyMass * workspace.Gravity * 4
 local DRAG_COEFFICIENT = 0.15
 local VehicleSeat = Boat:WaitForChild('VehicleSeat')
 local Propulsor = Boat:WaitForChild('Propulsor')
-VehicleSeat.BodyPosition.MaxForce = Vector3.new(0, MAX_FORCE, 0)
+
+-- // Control vertical: LinearVelocity (rigido) en vez de BodyPosition (resorte con fuerza limitada, que rebota con olas muy rapidas).
+-- // velocidad vertical = velocidad de la ola (anticipada) + VERTICAL_GAIN * error de altura
+local Mass = Boat.Main.AssemblyMass
+local VERTICAL_GAIN = 10 -- // 1/s. Mas alto = sigue la ola mas pegado, mas bajo = mas suave
+local MAX_VERTICAL_SPEED = 600 -- // studs/s
+local MAX_VERTICAL_FORCE = Mass * workspace.Gravity * 30
+
+VehicleSeat.BodyPosition.MaxForce = Vector3.zero -- // desactivado, lo reemplaza VerticalVelocity
+
+local VerticalAttachment = Instance.new('Attachment')
+VerticalAttachment.Name = 'VerticalAttachment'
+VerticalAttachment.Parent = Boat.Main
+VerticalAttachment.WorldPosition = Boat.Main.CenterOfMass
+
+local VerticalVelocity = Instance.new('LinearVelocity')
+VerticalVelocity.Name = 'VerticalVelocity'
+VerticalVelocity.Attachment0 = VerticalAttachment
+VerticalVelocity.RelativeTo = Enum.ActuatorRelativeTo.World
+VerticalVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+VerticalVelocity.ForceLimitMode = Enum.ForceLimitMode.PerAxis
+VerticalVelocity.MaxAxesForce = Vector3.new(0, MAX_VERTICAL_FORCE, 0)
+VerticalVelocity.VectorVelocity = Vector3.zero
+VerticalVelocity.Parent = Boat.Main
+
+-- // El BodyVelocity solo debe mover la nave en horizontal; la altura la controla VerticalVelocity.
+do
+	local BV = VehicleSeat.BodyVelocity
+	BV.MaxForce = Vector3.new(BV.MaxForce.X, 0, BV.MaxForce.Z)
+end
 VehicleSeat:SetNetworkOwner(nil)
 
 -- ============================================================
@@ -198,10 +226,10 @@ game:GetService('RunService').PostSimulation:Connect(function(dt)
 		if CURRENT_ZONE.Type ~= 'Whirlpool' then
 			if (CURRENT_ZONE.Link) then
 				local Position = CURRENT_ZONE.Link.Position
-				CurrentZoneInfo.PhaseMultiplier, CurrentZoneInfo.SpeedMultiplier, CurrentZoneInfo.AmplitudeMultiplier = ZoneManager:GetZoneMultipliers(Boat.Main.Position, Position, CURRENT_ZONE)
+				CurrentZoneInfo.SpeedMultiplier, CurrentZoneInfo.PhaseMultiplier, CurrentZoneInfo.AmplitudeMultiplier = ZoneManager:GetZoneMultipliers(Boat.Main.Position, Position, CURRENT_ZONE)
 			else
 				local IslandPosition, Radius = CURRENT_ZONE.Island.Center.Position, CURRENT_ZONE.Radius / 2
-				CurrentZoneInfo.PhaseMultiplier, CurrentZoneInfo.SpeedMultiplier, CurrentZoneInfo.AmplitudeMultiplier = ZoneManager:GetIslandMultipliers(Boat.Main.Position, IslandPosition, Radius)
+				CurrentZoneInfo.SpeedMultiplier, CurrentZoneInfo.PhaseMultiplier, CurrentZoneInfo.AmplitudeMultiplier = ZoneManager:GetIslandMultipliers(Boat.Main.Position, IslandPosition, Radius)
 			end
 		end
 	end
@@ -237,15 +265,19 @@ game:GetService('RunService').PostSimulation:Connect(function(dt)
 
 	lastThrottle = throttle
 
-	VehicleSeat.BodyVelocity.Velocity = VehicleSeat.CFrame.LookVector * CurrentSpeed
+	local Look = VehicleSeat.CFrame.LookVector
+	local Flat = Vector3.new(Look.X, 0, Look.Z)
+	if Flat.Magnitude > 0.01 then
+		Flat = Flat.Unit
+	end
+	VehicleSeat.BodyVelocity.Velocity = Flat * CurrentSpeed
 	UpdateSoundLayers(CurrentSpeed / MAX_SPEED)
 
-	local Height, Orientation, Depth = BoatManager.CalculateBuoyancy(Boat.Main.CenterOfMass, Boat.Main.Center.WorldPosition, BuoyancyPoints, boatLength, boatWidth, baseHeight, CurrentZoneInfo)
+	local AssemblyVelocity = VehicleSeat.AssemblyLinearVelocity
+	local Height, Orientation, Depth, WaveRate = BoatManager.CalculateBuoyancy(Boat.Main.CenterOfMass, Boat.Main.Center.WorldPosition, BuoyancyPoints, boatLength, boatWidth, baseHeight, CurrentZoneInfo, nil, Vector3.new(AssemblyVelocity.X, 0, AssemblyVelocity.Z))
 	if Height ~= Vector3.zero then
-		VehicleSeat.BodyPosition.MaxForce = Vector3.new(0, MAX_FORCE * (1 + (Depth / 10)), 0)
-		VehicleSeat.BodyPosition.Position = Height
-	else
-		VehicleSeat.BodyPosition.MaxForce = Vector3.zero
+		local HeightError = Height.Y - VehicleSeat.Position.Y
+		VerticalVelocity.VectorVelocity = Vector3.new(0, math.clamp(WaveRate + VERTICAL_GAIN * HeightError, -MAX_VERTICAL_SPEED, MAX_VERTICAL_SPEED), 0)
 	end
 	VehicleSeat.BodyGyro.CFrame = CFrame.fromEulerAnglesXYZ(0, CurrentRotation, 0) * Orientation
 	if ZoneAccumulated >= 3 then

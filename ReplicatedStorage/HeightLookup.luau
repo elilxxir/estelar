@@ -144,7 +144,7 @@ HeightLookup.LOOKUP_METHODS = LOOKUP_METHODS
 	
 	Optional multipliers can be given, which are used for zone / island regions.
 ]]
-function HeightLookup.Lookup(Point: Vector3, LOOKUP_METHOD: string, UseNearbyVertices: boolean, SpeedMultiplier: number?, PhaseMultiplier: number?, AmplitudeMultiplier: number?, ZONE: any?): number
+function HeightLookup.Lookup(Point: Vector3, LOOKUP_METHOD: string, UseNearbyVertices: boolean, SpeedMultiplier: number?, PhaseMultiplier: number?, AmplitudeMultiplier: number?, ZONE: any?, TimeOffset: number?): number
 	if _PLANE == nil and IS_SERVER == false then
 		warn('[HeightLookup] Please set the _PLANE value of the module before calling \'Lookup\'.')
 		return -1
@@ -218,7 +218,7 @@ function HeightLookup.Lookup(Point: Vector3, LOOKUP_METHOD: string, UseNearbyVer
 					v2 = EM:GetPosition(Vertex2Id) + PlanePositionXZ
 					v3 = EM:GetPosition(Vertex3Id) + PlanePositionXZ
 				else
-					local t = workspace:GetServerTimeNow()
+					local t = workspace:GetServerTimeNow() + (TimeOffset or 0)
 					-- // We apply our gerstner offsets to the triangle vertices, then check if we get a resulting height
 					
 					if IS_SERVER == false then
@@ -266,7 +266,7 @@ function HeightLookup.Lookup(Point: Vector3, LOOKUP_METHOD: string, UseNearbyVer
 		-- // It's best to keep the distance short as longer raycasts can be more expensive.
 		return -1
 	elseif LOOKUP_METHOD == LOOKUP_METHODS.FAST then
-		local t = workspace:GetServerTimeNow()
+		local t = workspace:GetServerTimeNow() + (TimeOffset or 0)
 		return GerstnerModule:GetApproximateHeight(_settings.Waves, Point, t, PhaseMultiplier, SpeedMultiplier, AmplitudeMultiplier) + PLANE_OFFSET_Y
 	end
 	if _settings.DEBUG == true then
