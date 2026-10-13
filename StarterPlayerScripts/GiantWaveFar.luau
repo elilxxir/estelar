@@ -119,7 +119,9 @@ local function CreateTile(EM: EditableMesh): MeshPart
 		local ClonedAppearance = Appearance:Clone()
 		ClonedAppearance.AlphaMode = Enum.AlphaMode.Overlay -- // v08 (antes Transparency): igual que los planos del oceano (Setup)
 		ClonedAppearance.Color = _settings.SURFACE_APPEARANCE_COLOR or Color3.fromRGB(31, 45, 62)
+		pcall(function() ClonedAppearance.ColorMapContent = Content.none end) -- // v12: la propiedad nueva (Content) es la que cuenta
 		pcall(function() ClonedAppearance.ColorMap = '' end) -- // v11: sin ColorMap
+		if _settings.DEBUG == true then pcall(function() warn('[ColorMap] GiantWaveFar:', ClonedAppearance.ColorMapContent.SourceType, '|', ClonedAppearance.ColorMap) end) end -- // v12 diagnostico
 		ClonedAppearance.Parent = Part
 	end
 

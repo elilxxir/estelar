@@ -306,9 +306,21 @@ function Setup.GetPlaneFromEditableMesh(EM: EditableMesh, Name: string?): MeshPa
 		local ClonedAppearance = Appearance:Clone()
 		ClonedAppearance.AlphaMode = Enum.AlphaMode.Overlay -- // v08 (antes Transparency)
 		ClonedAppearance.Color = _settings.SURFACE_APPEARANCE_COLOR or Color3.fromRGB(31, 45, 62) -- // v05: con fallback, si Settings no tiene la clave el plano no falla
+		pcall(function() ClonedAppearance.ColorMapContent = Content.none end) -- // v12: la propiedad nueva (Content) es la que cuenta
 		pcall(function() ClonedAppearance.ColorMap = '' end) -- // v11: sin ColorMap
+		if _settings.DEBUG == true then pcall(function() warn('[ColorMap] plano principal:', ClonedAppearance.ColorMapContent.SourceType, '|', ClonedAppearance.ColorMap) end) end -- // v12 diagnostico
 		ClonedAppearance.Parent = Plane
 	end
+
+	-- // v12: ExistingMesh puede traer su propio SurfaceAppearance / TextureID: tambien se les quita el ColorMap
+	for _, Child in Plane:GetChildren() do
+		if Child:IsA('SurfaceAppearance') then
+			pcall(function() Child.ColorMapContent = Content.none end)
+			pcall(function() Child.ColorMap = '' end)
+			if _settings.DEBUG == true then pcall(function() warn('[ColorMap] hijo del plano:', Child:GetFullName(), Child.ColorMapContent.SourceType) end) end
+		end
+	end
+	pcall(function() Plane.TextureID = '' end)
 
 	Plane.Color = Color3.fromRGB(255, 255, 255)
 	Plane.Size = Vector3.new(Size.X, 0.001, Size.Z)
@@ -514,7 +526,9 @@ function Setup.SetupSecondaryPlanes(EM: EditableMesh): { { MeshPart | Vector3 } 
 			local ClonedAppearance = Appearance:Clone()
 			ClonedAppearance.AlphaMode = Enum.AlphaMode.Overlay -- // v08 (antes Transparency)
 			ClonedAppearance.Color = _settings.SURFACE_APPEARANCE_COLOR or Color3.fromRGB(31, 45, 62) -- // v05: con fallback, si Settings no tiene la clave el plano no falla
+			pcall(function() ClonedAppearance.ColorMapContent = Content.none end) -- // v12: la propiedad nueva (Content) es la que cuenta
 			pcall(function() ClonedAppearance.ColorMap = '' end) -- // v11: sin ColorMap
+			if _settings.DEBUG == true then pcall(function() warn('[ColorMap] plano secundario:', ClonedAppearance.ColorMapContent.SourceType, '|', ClonedAppearance.ColorMap) end) end -- // v12 diagnostico
 			ClonedAppearance.Parent = Plane
 		end
 
