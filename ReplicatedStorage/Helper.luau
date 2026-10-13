@@ -36,6 +36,7 @@ local COLOR_LOW, COLOR_HIGH =_settings.WAVE_COLORS.TROUGH, _settings.WAVE_COLORS
 local SHORE_COLOR = _settings.WAVE_COLORS.SHORE
 local VORTEX_LOW = _settings.WAVE_COLORS.VORTEX
 local WHITECAP = Color3.new(1, 1, 1)
+local COLOR_MAX_Y = _settings.COLOR_MAX_HEIGHT or 2 -- // v10: altura a partir de la cual el color deja de aclararse (evita que la ola gigante se vea pálida/espumosa)
 
 local SCROLL_DIRECTION_X, SCROLL_DIRECTION_Y = _settings.UV_SCROLL_DIRECTION.X, _settings.UV_SCROLL_DIRECTION.Y
 local DEPTH_RAY = _settings.DEPTH_RAY_LENGTH
@@ -171,7 +172,7 @@ function Helper.GetVertexColor(TransformY: number, VortexY: number, AlphaTranspa
 		TransformY = -1
 	end
 	
-	local VertexColor = COLOR_LOW:Lerp(COLOR_HIGH, min(((TransformY + -1) * 4)  / 30, 1))
+	local VertexColor = COLOR_LOW:Lerp(COLOR_HIGH, min(((min(TransformY, COLOR_MAX_Y) + -1) * 4)  / 30, 1)) -- // v10: tope de altura para el color
 	if AlphaTransparency < 1 then
 		return VertexColor:Lerp(SHORE_COLOR, 1 - (AlphaTransparency / GOLDEN_RATIO))
 	end

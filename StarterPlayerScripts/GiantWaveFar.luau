@@ -31,7 +31,7 @@ local SLOTS = 2 -- // Pulsos dibujados a la vez (los dos que quedan a cada lado 
 
 local Dir = CFG.Direction.Unit
 local Perp = Vector3.new(-Dir.Z, 0, Dir.X)
-local BaseY = GRID.PLANE_OFFSET.Y - CFG.Drop
+local BaseY = GRID.PLANE_OFFSET.Y - CFG.Drop - (_settings.GIANT_FAR_EXTRA_DROP or 14) -- // v10: en el borde del plano la ola lejana coincidia con su superficie y asomaba cuando una ola pequena bajaba
 
 -- // Altura de la ola a distancia s de su centro (igual que Gerstner.ComputeGiantWave)
 local function Profile(s: number): number

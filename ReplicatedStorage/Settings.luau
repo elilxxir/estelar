@@ -172,6 +172,8 @@ return {
 	DEPTH_RAY_LENGTH = Vector3.new(0, -15, 0),
 	DEPTH_RAY_OFFSET = Vector3.new(0, 5, 0),
 
+	COLOR_MAX_HEIGHT = 2, -- // v10: tope de altura para el color de las olas. La ola gigante queda de un solo tono en vez de aclararse hasta casi blanco
+	GIANT_FAR_EXTRA_DROP = 14, -- // v10: studs extra que baja la ola lejana (GiantWaveFar). Debe ser > suma de amplitudes (~8.3) para que no asome a traves del plano
 	WHITECAP_HEIGHT = math.huge, -- // v09: sin espuma (antes 60). La ola gigante superaba ese umbral y se pintaba de blanco
 	SHORE_TRANSPARENCY = 0.2,
 
