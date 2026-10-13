@@ -143,7 +143,7 @@ local GIANT = {
 	Height = 2000,  -- altura maxima en studs (v07, antes 700). Tope practico: ~2048, el maximo de una malla de Roblox (ver GiantWaveFar)
 	Width = 800,    -- ancho del pulso (v07, antes 280). Height/Width = 2.5 como antes, asi la pendiente no cambia
 	Speed = 45,     -- studs/s (v07, antes 60)
-	Spacing = 7200, -- distancia entre pulsos en studs (v07, antes 5400). Segundos entre olas = Spacing / Speed = 160 s. Debe ser > ~9 * Width para que entre pulsos el mar quede plano
+	Spacing = 20000, -- distancia entre pulsos en studs (v07, antes 5400). Segundos entre olas = Spacing / Speed = 160 s. Debe ser > ~9 * Width para que entre pulsos el mar quede plano
 	Start = -1800,  -- posicion de un pulso cuando el tiempo del servidor es multiplo de Spacing / Speed
 	Drop = 10,      -- studs que la ola lejana (GiantWaveFar) queda por debajo del mar para no chocar con sus olas pequenas
 
