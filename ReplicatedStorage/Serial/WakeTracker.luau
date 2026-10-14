@@ -42,7 +42,22 @@ local function register(boat)
 	table.sort(list, function(a, b)
 		return (a.WorldPosition - main.Position):Dot(look) > (b.WorldPosition - main.Position):Dot(look)
 	end)
+	local props = {}
+	for _, inst in CS:GetTagged("propulsor") do
+		if inst:IsA("BasePart") and inst:IsDescendantOf(boat) then
+			table.insert(props, inst)
+		end
+	end
+	if #props == 0 then
+		for _, inst in boat:GetChildren() do
+			if inst.Name == "Propulsor" and inst:IsA("BasePart") then
+				table.insert(props, inst)
+			end
+		end
+	end
+
 	boats[boat] = {
+		props = props,
 		main = main,
 		bow = { list[1], list[2] },
 		stern = { list[3], list[4] },
@@ -51,7 +66,7 @@ local function register(boat)
 		prevPos = nil,
 		prevClock = 0,
 		vel = Vector3.zero,
-		chains = { stern = {}, bowL = {}, bowR = {} },
+		chains = { stern = {}, bowL = {}, bowR = {}, props = {} },
 	}
 	boat.Destroying:Once(function()
 		boats[boat] = nil
@@ -110,7 +125,15 @@ function WakeTracker.Update()
 			b.lastT = now
 			b.lastPos = center
 			local strength = math.clamp(speed / SPEED_FULL, 0.4, 1)
-			push(b.chains.stern, (b.stern[1].WorldPosition + b.stern[2].WorldPosition) / 2, now, STERN, strength)
+			if #b.props > 0 then
+				-- una estela por cada Propulsor
+				for i, part in b.props do
+					b.chains.props[i] = b.chains.props[i] or {}
+					push(b.chains.props[i], part.Position, now, STERN, strength)
+				end
+			else
+				push(b.chains.stern, (b.stern[1].WorldPosition + b.stern[2].WorldPosition) / 2, now, STERN, strength)
+			end
 			push(b.chains.bowL, b.bow[1].WorldPosition, now, BOW, strength * 0.7)
 			push(b.chains.bowR, b.bow[2].WorldPosition, now, BOW, strength * 0.7)
 		end

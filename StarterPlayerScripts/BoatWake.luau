@@ -31,6 +31,24 @@ local SPLASH_SOUND_IDS = {        -- REPLACE with your own splash sounds
 
 local SMOKE = "rbxasset://textures/particles/smoke_main.dds"
 
+-- Partes Propulsor del bote (tag "propulsor", o hijas llamadas "Propulsor"). Cada una tiene su churn y su espuma.
+local function FindPropulsors(boat)
+	local list = {}
+	for _, inst in CS:GetTagged("propulsor") do
+		if inst:IsA("BasePart") and inst:IsDescendantOf(boat) then
+			table.insert(list, inst)
+		end
+	end
+	if #list == 0 then
+		for _, inst in boat:GetChildren() do
+			if inst.Name == "Propulsor" and inst:IsA("BasePart") then
+				table.insert(list, inst)
+			end
+		end
+	end
+	return list
+end
+
 local folder = Instance.new("Folder")
 folder.Name = "WakeFolder"
 folder.Parent = workspace
@@ -224,22 +242,32 @@ local function setupBoat(boat)
 		}), 20, 1.5)
 	end
 
-	-- Propeller churn (center of stern)
-	local sternCenter = (sternL.WorldPosition + sternR.WorldPosition) / 2
-	local churnAtt = makeAtt(main, sternCenter, back * 0.7 + up * 0.35, "Churn")
-	add(makeEmitter(churnAtt, {
-		Lifetime = NumberRange.new(0.8, 1.6), Speed = NumberRange.new(4, 9),
-		Spread = Vector2.new(30, 30), Accel = Vector3.new(0, -4, 0),
-		Size = seq(2, 7), Transparency = fade(0.3, 0.6, 1),
-	}), 18, 0.8)
+	-- Propeller churn + surface foam: uno por cada Propulsor (si no hay, uno al centro de la popa)
+	local sources = {}
+	for _, part in FindPropulsors(boat) do
+		table.insert(sources, part.Position)
+	end
+	if #sources == 0 then
+		table.insert(sources, (sternL.WorldPosition + sternR.WorldPosition) / 2)
+	end
+	local foamAtts = {}
+	for i, srcPos in sources do
+		local churnAtt = makeAtt(main, srcPos, back * 0.7 + up * 0.35, "Churn" .. i)
+		add(makeEmitter(churnAtt, {
+			Lifetime = NumberRange.new(0.8, 1.6), Speed = NumberRange.new(4, 9),
+			Spread = Vector2.new(30, 30), Accel = Vector3.new(0, -4, 0),
+			Size = seq(2, 7), Transparency = fade(0.3, 0.6, 1),
+		}), 18, 0.8)
 
-	-- Surface foam left in the world (attachment is moved to the water height every frame)
-	local foamAtt = makeAtt(main, sternCenter, up, "SurfaceFoam")
-	add(makeEmitter(foamAtt, {
-		Lifetime = NumberRange.new(2, 3.5), Speed = NumberRange.new(0.5, 2),
-		Spread = Vector2.new(80, 80), Size = seq(4, 12), Transparency = fade(0.45, 0.7, 1),
-		Orientation = Enum.ParticleOrientation.FacingCameraWorldUp, RotSpeed = NumberRange.new(-15, 15), Light = 0.15,
-	}), 6, 0.7)
+		-- Surface foam left in the world (attachment is moved to the water height every frame)
+		local foamAtt = makeAtt(main, srcPos, up, "SurfaceFoam" .. i)
+		add(makeEmitter(foamAtt, {
+			Lifetime = NumberRange.new(2, 3.5), Speed = NumberRange.new(0.5, 2),
+			Spread = Vector2.new(80, 80), Size = seq(4, 12), Transparency = fade(0.45, 0.7, 1),
+			Orientation = Enum.ParticleOrientation.FacingCameraWorldUp, RotSpeed = NumberRange.new(-15, 15), Light = 0.15,
+		}), 6, 0.7)
+		table.insert(foamAtts, foamAtt)
+	end
 
 	-- Impact effects (burst only)
 	local centerAtt = main:FindFirstChild("Center")
@@ -274,7 +302,7 @@ local function setupBoat(boat)
 
 	states[boat] = {
 		boat = boat, main = main, seat = seat,
-		emitters = emitters, foamAtt = foamAtt, impact = impact, impactAtt = impactAtt,
+		emitters = emitters, foamAtts = foamAtts, impact = impact, impactAtt = impactAtt,
 		ribbons = ribbons, lastT = 0, lastPos = Vector3.zero, frame = 0,
 		prevVy = 0, lastImpact = 0,
 		prevPos = nil, prevClock = 0, vel = Vector3.zero,
@@ -346,8 +374,10 @@ local function update(s)
 	end
 
 	-- Keep surface foam on the water
-	local fp = s.foamAtt.WorldPosition
-	s.foamAtt.WorldPosition = Vector3.new(fp.X, waterY(fp, fp.Y), fp.Z)
+	for _, att in s.foamAtts do
+		local fp = att.WorldPosition
+		att.WorldPosition = Vector3.new(fp.X, waterY(fp, fp.Y), fp.Z)
+	end
 
 	-- Record ribbon points
 	local center = s.main.Position

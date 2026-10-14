@@ -12,7 +12,22 @@ local ZoneManager = require(game.ReplicatedStorage.Gerstner.Serial.ZoneManager)
 Boat:WaitForChild('Main')
 workspace.Camera.CameraType = Enum.CameraType.Track
 local VehicleSeat = Boat:WaitForChild('VehicleSeat')
-local Propulsor = Boat:WaitForChild('Propulsor')
+local Propulsor = Boat:WaitForChild('Propulsor') -- // Primera parte: aqui van los sonidos (una sola vez)
+-- // Todas las partes Propulsor (tag "propulsor" o llamadas "Propulsor"): los efectos se activan en todas
+local Propulsors = {}
+for _, inst in ipairs(game:GetService('CollectionService'):GetTagged('propulsor')) do
+	if inst:IsA('BasePart') and inst:IsDescendantOf(Boat) then
+		table.insert(Propulsors, inst)
+	end
+end
+for _, inst in ipairs(Boat:GetChildren()) do
+	if inst.Name == 'Propulsor' and inst:IsA('BasePart') and not table.find(Propulsors, inst) then
+		table.insert(Propulsors, inst)
+	end
+end
+if #Propulsors == 0 then
+	Propulsors[1] = Propulsor
+end
 local MAX_SPEED = BoatDrive.MAX_SPEED
 
 -- // Los controladores fisicos antiguos ya no se usan: BoatDrive coloca la nave directamente.
@@ -206,9 +221,11 @@ end
 -- ============================================================
 
 local function SetPropulsorEffects(enabled)
-	for _, effect in ipairs(Propulsor:GetChildren()) do
-		if effect:IsA("ParticleEmitter") or effect:IsA("Trail") or effect:IsA("Smoke") or effect:IsA("Fire") or effect:IsA("Sparkles") then
-			effect.Enabled = enabled
+	for _, part in ipairs(Propulsors) do
+		for _, effect in ipairs(part:GetChildren()) do
+			if effect:IsA("ParticleEmitter") or effect:IsA("Trail") or effect:IsA("Smoke") or effect:IsA("Fire") or effect:IsA("Sparkles") then
+				effect.Enabled = enabled
+			end
 		end
 	end
 end
