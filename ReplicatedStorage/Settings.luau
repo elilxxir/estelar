@@ -77,9 +77,9 @@ local WLMultiplier, AmplitudeMultiplier = 1.14, 0.86
 local function BrownianMotionWaves(Amount: number): { GerstnerWave.WaveInfo }
 	local Results = {}
 	local WaveLength, Amplitude = 40, 0.3
-	
+
 	local PrimaryDirectionUnit = workspace.GlobalWind.Unit
-	
+
 	for i = 1, Amount do
 		if Amplitude <= 0.05 then
 			warn('Stopped at ' .. i .. ' as amplitude reached threshold (0.025)')
@@ -89,10 +89,10 @@ local function BrownianMotionWaves(Amount: number): { GerstnerWave.WaveInfo }
 		local Direction = i == 1 
 			and PrimaryDirectionUnit 
 			or (RandomDirectionUnit + PrimaryDirectionUnit).Unit
-		
+
 		local WaveInfo = GerstnerWave.new(Direction, WaveLength, Amplitude)
 		table.insert(Results, WaveInfo)
-		
+
 		WaveLength *= WLMultiplier
 		Amplitude *= AmplitudeMultiplier
 	end
@@ -164,7 +164,7 @@ return {
 		VORTEX = Color3.fromRGB(18, 28, 33);
 		SHORE = Color3.fromRGB(60, 70, 75)
 	},
-	SURFACE_APPEARANCE_COLOR = Color3.fromRGB(31, 45, 62), -- // v03: tinte del SurfaceAppearance del mar (AlphaMode = Transparency)
+	SURFACE_APPEARANCE_COLOR = Color3.fromRGB(80, 118, 161), -- // v03: tinte del SurfaceAppearance del mar (AlphaMode = Transparency)
 	UV_SCROLL_SPEED = 1/90, -- // Mas lento = mar mas quieto (modo lago)
 	UV_SCROLL_DIRECTION = Vector2.new(1, 1),
 
@@ -187,5 +187,5 @@ return {
 	GIANT_FAR_WAVE = GIANT_FAR_WAVE, -- // (editar arriba, junto a la variable local) Dibuja la ola gigante mas alla del plano (StarterPlayerScripts/GiantWaveFar). false = desactivado
 
 	FRUSTUM_CULLING_FIX = true; -- // See known issues #7
-	
+
 }
