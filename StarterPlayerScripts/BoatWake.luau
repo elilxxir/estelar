@@ -277,6 +277,7 @@ local function setupBoat(boat)
 		emitters = emitters, foamAtt = foamAtt, impact = impact, impactAtt = impactAtt,
 		ribbons = ribbons, lastT = 0, lastPos = Vector3.zero, frame = 0,
 		prevVy = 0, lastImpact = 0,
+		prevPos = nil, prevClock = 0, vel = Vector3.zero,
 	}
 
 	boat.Destroying:Once(function()
@@ -315,7 +316,17 @@ end
 -- // Update
 local function update(s)
 	local now = workspace:GetServerTimeNow()
-	local vel = s.main.AssemblyLinearVelocity
+	-- Velocidad a partir del movimiento real (la nave se mueve sin fisica, AssemblyLinearVelocity no es fiable)
+	local pos = s.main.Position
+	local clock = os.clock()
+	if s.prevPos then
+		local dtv = clock - s.prevClock
+		if dtv > 1e-3 then
+			s.vel = s.vel:Lerp((pos - s.prevPos) / dtv, 0.4)
+		end
+	end
+	s.prevPos, s.prevClock = pos, clock
+	local vel = s.vel
 	local speed = Vector3.new(vel.X, 0, vel.Z).Magnitude
 	local active = speed > MIN_SPEED
 	s.frame += 1

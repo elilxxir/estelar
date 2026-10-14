@@ -48,6 +48,9 @@ local function register(boat)
 		stern = { list[3], list[4] },
 		lastT = 0,
 		lastPos = Vector3.zero,
+		prevPos = nil,
+		prevClock = 0,
+		vel = Vector3.zero,
 		chains = { stern = {}, bowL = {}, bowR = {} },
 	}
 	boat.Destroying:Once(function()
@@ -92,9 +95,17 @@ function WakeTracker.Update()
 
 	for _, b in boats do
 		local main = b.main
-		local vel = main.AssemblyLinearVelocity
-		local speed = Vector3.new(vel.X, 0, vel.Z).Magnitude
 		local center = main.Position
+		-- Velocidad a partir del movimiento real (la nave se mueve sin fisica, AssemblyLinearVelocity no es fiable)
+		local clock = os.clock()
+		if b.prevPos then
+			local dtv = clock - b.prevClock
+			if dtv > 1e-3 then
+				b.vel = b.vel:Lerp((center - b.prevPos) / dtv, 0.5)
+			end
+		end
+		b.prevPos, b.prevClock = center, clock
+		local speed = Vector3.new(b.vel.X, 0, b.vel.Z).Magnitude
 		if speed > MIN_SPEED and now - b.lastT >= INTERVAL and (center - b.lastPos).Magnitude >= MIN_DIST then
 			b.lastT = now
 			b.lastPos = center
