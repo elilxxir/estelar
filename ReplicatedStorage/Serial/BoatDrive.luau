@@ -22,7 +22,7 @@ local ZoneManager = require(script.Parent.ZoneManager)
 -- // Control
 local MAX_SPEED = 200 -- // studs/s
 local MAX_REVERSE_SPEED = 60 -- // studs/s (solo por deslizarse hacia atras en una pendiente)
-local ACCELERATION = 10 -- // studs/s^2
+local ACCELERATION = 20 -- // studs/s^2
 local DECELERATION = 15 -- // studs/s^2
 local TURN_RATE = math.rad(30) -- // rad/s
 
