@@ -62,7 +62,10 @@ local WakePoints: { number } = {}
 local FOAM_COLOR = Color3.new(0.93, 0.98, 0.97)
 local FOAM_MAX = 0.85
 Actor:BindToMessage('WakeUpdate', function(flat)
-	WakePoints = flat
+	-- stride 9; ignora datos de una version vieja de WakeTracker
+	if #flat % 9 == 0 then
+		WakePoints = flat
+	end
 end)
 
 local FADE_START, FADE_END = 450, 800 -- distancia al centro del plano donde la espuma se desvanece (evita el corte con los planos secundarios)

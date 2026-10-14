@@ -19,7 +19,7 @@ local BOW = { r0 = 9, spread = 10, life = 2.5 }
 local WakeTracker = {}
 
 local boats = {}
-local points = {} -- { x, z, t, r0, spread, life, strength }
+local points = {} -- { x, z, prevX, prevZ, t, r0, spread, life, strength }
 
 local function register(boat)
 	if boats[boat] then
