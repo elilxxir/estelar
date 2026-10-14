@@ -204,13 +204,13 @@ local function setupBoat(boat)
 			Lifetime = NumberRange.new(0.6, 1.3), Speed = NumberRange.new(6, 12),
 			Spread = Vector2.new(25, 25), Accel = Vector3.new(0, -14, 0),
 			Size = seq(1.2, 4.5), Transparency = seq(0.35, 1),
-		}), 70, 1)
+		}), 35, 1)
 		-- fine droplets
 		add(makeEmitter(att, {
 			Lifetime = NumberRange.new(0.5, 1.0), Speed = NumberRange.new(10, 22),
 			Spread = Vector2.new(35, 35), Accel = Vector3.new(0, -45, 0),
 			Size = seq(0.35, 0.15), Transparency = seq(0.1, 1), Light = 0.1,
-		}), 45, 1.2)
+		}), 20, 1.2)
 	end
 
 	-- Bow spray (thrown sideways and up)
@@ -221,7 +221,7 @@ local function setupBoat(boat)
 			Lifetime = NumberRange.new(0.5, 1.1), Speed = NumberRange.new(5, 11),
 			Spread = Vector2.new(20, 20), Accel = Vector3.new(0, -16, 0),
 			Size = seq(0.8, 3.2), Transparency = seq(0.4, 1),
-		}), 45, 1.5)
+		}), 20, 1.5)
 	end
 
 	-- Propeller churn (center of stern)
@@ -231,7 +231,7 @@ local function setupBoat(boat)
 		Lifetime = NumberRange.new(0.8, 1.6), Speed = NumberRange.new(4, 9),
 		Spread = Vector2.new(30, 30), Accel = Vector3.new(0, -4, 0),
 		Size = seq(2, 7), Transparency = fade(0.3, 0.6, 1),
-	}), 40, 0.8)
+	}), 18, 0.8)
 
 	-- Surface foam left in the world (attachment is moved to the water height every frame)
 	local foamAtt = makeAtt(main, sternCenter, up, "SurfaceFoam")
@@ -239,7 +239,7 @@ local function setupBoat(boat)
 		Lifetime = NumberRange.new(2, 3.5), Speed = NumberRange.new(0.5, 2),
 		Spread = Vector2.new(80, 80), Size = seq(4, 12), Transparency = fade(0.45, 0.7, 1),
 		Orientation = Enum.ParticleOrientation.FacingCameraWorldUp, RotSpeed = NumberRange.new(-15, 15), Light = 0.15,
-	}), 14, 0.7)
+	}), 6, 0.7)
 
 	-- Impact effects (burst only)
 	local centerAtt = main:FindFirstChild("Center")

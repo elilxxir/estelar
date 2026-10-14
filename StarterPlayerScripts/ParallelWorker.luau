@@ -60,7 +60,7 @@ local VertexTransparencyArray = SharedTableRegistry:GetSharedTable('VertexTransp
 
 local WakePoints: { number } = {}
 local FOAM_COLOR = Color3.new(0.93, 0.98, 0.97)
-local FOAM_MAX = 0.85
+local FOAM_MAX = 0.4 -- poca espuma (antes 0.85)
 Actor:BindToMessage('WakeUpdate', function(flat)
 	-- stride 9; ignora datos de una version vieja de WakeTracker
 	if #flat % 9 == 0 then
