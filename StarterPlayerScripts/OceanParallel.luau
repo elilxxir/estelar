@@ -267,6 +267,17 @@ do
 	end)
 	HeightLookup.ClientInit(VertexPositionToId, EditableMesh, Plane)
 
+	local WakeTracker = require((ReplicatedStorage:FindFirstChild("Serial", true) :: any).WakeTracker)
+	task.spawn(function()
+		while true do
+			task.wait(0.1)
+			local flat = WakeTracker.Update()
+			for _, actor in workers do
+				actor:SendMessage('WakeUpdate', flat)
+			end
+		end
+	end)
+
 	-- // For the main thread itself, we have our own loop that moves the plane mesh with us
 	-- // This allows us to have an 'infinite' effect on the ocean
 
