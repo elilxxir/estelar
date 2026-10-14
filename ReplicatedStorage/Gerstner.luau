@@ -105,7 +105,7 @@ function Gerstner:SET_SETTINGS(Padding: number, Width: number, Length: number, P
 	GRID_INFO.Width = Width
 	GRID_INFO.Length = Length
 	GRID_INFO.PaddingMultiplier = PaddingMulti
-	
+
 	PaddingMultiplier = PaddingMulti
 	UV_SCALE = SCALE
 end
@@ -119,11 +119,11 @@ end
 ]]
 function Gerstner.new(Direction: Vector3, WaveLength: number, Steepness: number, Gravity: number?): WaveInfo
 	local g = Gravity or 9.8
-	
+
 	local WaveNumber = TwoPi / WaveLength
 	local WaveSpeed = sqrt(g / WaveNumber)
 	local waveAmplitude = Steepness / WaveNumber
-	
+
 	return {
 		Direction = Direction,
 		WaveLength = WaveLength,
@@ -142,7 +142,7 @@ local GIANT = {
 	Direction = Vector3.new(1, 0, 0), -- direccion de avance (unitario)
 	Height = 2000,  -- altura maxima en studs (v07, antes 700). Tope practico: ~2048, el maximo de una malla de Roblox (ver GiantWaveFar)
 	Width = 800,    -- ancho del pulso (v07, antes 280). Height/Width = 2.5 como antes, asi la pendiente no cambia
-	Speed = 45,     -- studs/s (v07, antes 60)
+	Speed = 100,     -- studs/s (v07, antes 60)
 	Spacing = 20000, -- distancia entre pulsos en studs (v07, antes 5400). Segundos entre olas = Spacing / Speed = 160 s. Debe ser > ~9 * Width para que entre pulsos el mar quede plano
 	Start = -1800,  -- posicion de un pulso cuando el tiempo del servidor es multiplo de Spacing / Speed
 	Drop = 10,      -- studs que la ola lejana (GiantWaveFar) queda por debajo del mar para no chocar con sus olas pequenas
@@ -281,7 +281,7 @@ end
 
 function Gerstner.ComputeWave(Position: Vector3, t: number, WaveNumber: number, WaveSpeed: number, WaveAmplitude: number, WaveDirection: Vector3): Vector3
 	local Phase = WaveNumber * (WaveDirection:Dot(Position) - WaveSpeed * t)
-	
+
 	local cosf = cos(Phase)
 	local sinf = sin(Phase)
 	local Acosf = (WaveAmplitude * cosf)
@@ -298,34 +298,34 @@ function Gerstner.ComputeTransformAndNormal( Waves: { WaveInfo }, Position: Vect
 	local Transform = v3zero
 	local Tangent = X_AXIS
 	local Binormal = Z_AXIS
-	
+
 	local phaseMulti = phaseMulti:: number or 1
 	local speedMulti = speedMulti:: number or 1
 	local amplitudeMulti = amplitudeMulti:: number or 1
-	
+
 	for i, Wave: WaveInfo in Waves do
 		local waveNumber, waveSpeed, waveAmplitude = Wave.WaveNumber * phaseMulti, Wave.WaveSpeed * speedMulti, Wave.WaveAmplitude * amplitudeMulti
 		local _transform, _tangent, _binormal = Gerstner.ComputeWaveAndNormals(Position, t, waveNumber, waveSpeed, waveAmplitude, Wave.Direction, Wave.Steepness)
 		Transform += _transform
-		
+
 		Tangent += _tangent
 		Binormal += _binormal
 	end
-	
+
 	local Normal = Binormal:Cross(Tangent).Unit
-	
+
 	return Transform, Normal
 end
 
 function Gerstner.ComputeWaveAndNormals(Position: Vector3, t: number, WaveNumber: number, WaveSpeed: number, WaveAmplitude: number, WaveDirection: Vector3, Steepness: number): (Vector3, Vector3, Vector3)
 	local Phase = WaveNumber * (WaveDirection:Dot(Position) - WaveSpeed * t)
-	
+
 	local cosf = cos(Phase)
 	local sinf = sin(Phase)
 	local Acosf = (WaveAmplitude * cosf)
 	local X, Y, Z = WaveDirection.X * Acosf, WaveAmplitude * sinf, WaveDirection.Z * Acosf
-	
-	
+
+
 	local dX, dZ = WaveDirection.X, WaveDirection.Z
 	local SteepnessSinF = (Steepness * sinf)
 	local SteepnessCosF = (Steepness * cosf)
@@ -349,7 +349,7 @@ end
 function Gerstner.GetVortexTransform(VortexParams: any, VertexPosition: Vector3, BaseUV: Vector2?, t: number, PlanePosition: Vector3?): (Vector3, Vector2)
 	local WhirlpoolCenter: Vector3 = VortexParams.Origin * XZ_AXIS
 	local Radius: number = VortexParams.Radius
-	
+
 	local Displacement = (VertexPosition * XZ_AXIS) - WhirlpoolCenter
 	local Distance = Displacement.Magnitude
 
@@ -358,24 +358,24 @@ function Gerstner.GetVortexTransform(VortexParams: any, VertexPosition: Vector3,
 	end
 	local FormationTime: number = VortexParams.FormationTime
 	local SpawnedAt: number = VortexParams.SpawnedAt
-	
+
 	local Decay = 1
 	local Despawn: boolean? = VortexParams.Despawn
 	local Delta: number? = nil
-	
+
 	if Despawn == true then
 		local DissolveTime: number = VortexParams.DissolveTime
 		local FullyDecayAt: number = VortexParams.FullDecayAt
-		
+
 		if t > FullyDecayAt then
 			-- return v3zero, v2zero
 		end
-		
+
 		Delta = clamp(1 - ((FullyDecayAt - t) / DissolveTime), 0, 1)
 		Decay = CosineLerp(1, 0, Delta:: number)
 	end
-	
-	
+
+
 	local Elapsed = t - SpawnedAt
 	local ElapsedClamped = Elapsed >= FormationTime and 1 or CosineLerp(0, 1, min(Elapsed / FormationTime, 1))
 
@@ -395,7 +395,7 @@ function Gerstner.GetVortexTransform(VortexParams: any, VertexPosition: Vector3,
 
 	local DownwardForce = v3new(0, -DownwardForce / (DividedDistance + 1), 0) * FalloffSmooth * ElapsedClamped * Decay
 	local TangentVelocity = Displacement:Cross(Y_AXIS).Unit * (TangentSpeed * VelocityDistance) * FalloffSmooth * ElapsedClamped * Decay
-	
+
 	-- // UV rotation: To simulate a spinning effect, the UV is rotated if we're in the whirlpool radius
 	-- // This does create an issue where the UVs at the borders are distorted
 	-- // 	Normally we'd avoid this by not rotating the actual UV at all, and instead having an 'overlay' texture 
@@ -406,12 +406,12 @@ function Gerstner.GetVortexTransform(VortexParams: any, VertexPosition: Vector3,
 	if BaseUV ~= nil then
 		local PlanePosition = PlanePosition:: Vector3
 		local AngularSpeed = -sign(TangentSpeed) * RotSpeed 
-		
+
 		local VortexUV: Vector2 = VortexParams.UVCenter or GetUVCoordinates(WhirlpoolCenter.X - PlanePosition.X, WhirlpoolCenter.Z - PlanePosition.Z)
 		VortexParams.UVCenter = VortexUV
-		
+
 		local angle = (rad(AngularSpeed * ElapsedClamped) * Elapsed) % TwoPi
-		
+
 		if Despawn == true then
 			angle = CosineLerp(angle, TwoPi, Delta:: number)
 		end
