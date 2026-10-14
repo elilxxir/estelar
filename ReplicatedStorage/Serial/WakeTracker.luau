@@ -1,19 +1,20 @@
 -- ModuleScript in ReplicatedStorage > Gerstner > Serial (junto a BoatManager)
 -- Registra la estela de los botes (puntos en el mar) para que ParallelWorker la pinte en los vertices.
--- Update() devuelve un array plano con stride 7: x, z, t, r0, spread, life, strength
+-- Update() devuelve un array plano con stride 9: x, z, prevX, prevZ, t, r0, spread, life, strength
+-- (cada punto es un segmento desde la posicion anterior de su cadena: estela continua, sin "manchas")
 
 local CS = game:GetService("CollectionService")
 
-local STRIDE = 7
+local STRIDE = 9
 local MIN_SPEED = 6
 local SPEED_FULL = 60
 local INTERVAL = 0.1
-local MIN_DIST = 4
+local MIN_DIST = 2
 local MAX_POINTS = 150
 
 -- radio inicial, crecimiento, vida (s)
-local STERN = { r0 = 10, spread = 18, life = 5 }
-local BOW = { r0 = 7, spread = 8, life = 2.5 }
+local STERN = { r0 = 14, spread = 22, life = 5 }
+local BOW = { r0 = 9, spread = 10, life = 2.5 }
 
 local WakeTracker = {}
 
@@ -47,6 +48,7 @@ local function register(boat)
 		stern = { list[3], list[4] },
 		lastT = 0,
 		lastPos = Vector3.zero,
+		chains = { stern = {}, bowL = {}, bowR = {} },
 	}
 	boat.Destroying:Once(function()
 		boats[boat] = nil
@@ -75,8 +77,13 @@ local function start()
 	end
 end
 
-local function push(pos, t, cfg, strength)
-	table.insert(points, { pos.X, pos.Z, t, cfg.r0, cfg.spread, cfg.life, strength })
+local function push(chain, pos, t, cfg, strength)
+	local px, pz = pos.X, pos.Z
+	if chain.t and t - chain.t < 0.6 then
+		px, pz = chain.x, chain.z
+	end
+	chain.x, chain.z, chain.t = pos.X, pos.Z, t
+	table.insert(points, { pos.X, pos.Z, px, pz, t, cfg.r0, cfg.spread, cfg.life, strength })
 end
 
 function WakeTracker.Update()
@@ -92,16 +99,16 @@ function WakeTracker.Update()
 			b.lastT = now
 			b.lastPos = center
 			local strength = math.clamp(speed / SPEED_FULL, 0.4, 1)
-			push((b.stern[1].WorldPosition + b.stern[2].WorldPosition) / 2, now, STERN, strength)
-			push(b.bow[1].WorldPosition, now, BOW, strength * 0.7)
-			push(b.bow[2].WorldPosition, now, BOW, strength * 0.7)
+			push(b.chains.stern, (b.stern[1].WorldPosition + b.stern[2].WorldPosition) / 2, now, STERN, strength)
+			push(b.chains.bowL, b.bow[1].WorldPosition, now, BOW, strength * 0.7)
+			push(b.chains.bowR, b.bow[2].WorldPosition, now, BOW, strength * 0.7)
 		end
 	end
 
 	-- limpiar expirados
 	local alive = {}
 	for _, p in points do
-		if now - p[3] < p[6] then
+		if now - p[5] < p[8] then
 			table.insert(alive, p)
 		end
 	end

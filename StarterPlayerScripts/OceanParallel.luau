@@ -364,7 +364,7 @@ do
 	end)
 
 	while true do
-		local dt = task.wait(0.25)
+		local dt = task.wait(0.1)
 		local distance2, farPlaneHeight2, farPlaneWidth2, rightNormal, leftNormal, topNormal, bottomNormal, frustumCFrameInverse = Helper.GetFrustumPlanes(_settings.FrustumRenderDistance, Camera.CFrame)
 
 		local Padding = GRID_SETTINGS.Padding

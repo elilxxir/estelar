@@ -65,14 +65,35 @@ Actor:BindToMessage('WakeUpdate', function(flat)
 	WakePoints = flat
 end)
 
+local FADE_START, FADE_END = 450, 800 -- distancia al centro del plano donde la espuma se desvanece (evita el corte con los planos secundarios)
+
+local function EdgeFade(x: number, z: number): number
+	local d = math.sqrt(x * x + z * z)
+	if d <= FADE_START then
+		return 1
+	elseif d >= FADE_END then
+		return 0
+	end
+	local u = (d - FADE_START) / (FADE_END - FADE_START)
+	return 1 - u * u * (3 - 2 * u)
+end
+
 local function GetFoam(x: number, z: number, list: { number }, n: number): number
 	local foam = 0
-	for i = 1, n, 4 do
-		local dx, dz = x - list[i], z - list[i + 1]
-		local r = list[i + 2]
+	for i = 1, n, 6 do
+		local ax, az = list[i], list[i + 1]
+		local abx, abz = list[i + 2] - ax, list[i + 3] - az
+		local apx, apz = x - ax, z - az
+		local len2 = abx * abx + abz * abz
+		local u = 0
+		if len2 > 1e-6 then
+			u = math.clamp((apx * abx + apz * abz) / len2, 0, 1)
+		end
+		local dx, dz = apx - abx * u, apz - abz * u
+		local r = list[i + 4]
 		local d2 = dx * dx + dz * dz
 		if d2 < r * r then
-			local f = (1 - math.sqrt(d2) / r) * list[i + 3]
+			local f = (1 - math.sqrt(d2) / r) * list[i + 5]
 			if f > foam then
 				foam = f
 			end
@@ -175,18 +196,22 @@ Actor:BindToMessage('Compute', function(waves, Plane: MeshPart, EditableMesh: Ed
 			Active = true
 
 			local cwn = 0
-			for k = 1, #WakePoints, 7 do
-				local age = (t - WakePoints[k + 2]) / WakePoints[k + 5]
+			for k = 1, #WakePoints, 9 do
+				local age = (t - WakePoints[k + 4]) / WakePoints[k + 7]
 				if age >= 0 and age < 1 then
-					local r = WakePoints[k + 3] + age * WakePoints[k + 4]
-					local dx, dz = WakePoints[k] - ChunkPosition.X, WakePoints[k + 1] - ChunkPosition.Z
-					local reach = r + 75
+					local r = WakePoints[k + 5] + age * WakePoints[k + 6]
+					local mx, mz = (WakePoints[k] + WakePoints[k + 2]) / 2, (WakePoints[k + 1] + WakePoints[k + 3]) / 2
+					local hl = math.sqrt((WakePoints[k] - WakePoints[k + 2]) ^ 2 + (WakePoints[k + 1] - WakePoints[k + 3]) ^ 2) / 2
+					local dx, dz = mx - ChunkPosition.X, mz - ChunkPosition.Z
+					local reach = r + hl + 75
 					if dx * dx + dz * dz < reach * reach then
 						cw[cwn + 1] = WakePoints[k]
 						cw[cwn + 2] = WakePoints[k + 1]
-						cw[cwn + 3] = r
-						cw[cwn + 4] = (1 - age) ^ 1.2 * WakePoints[k + 6]
-						cwn += 4
+						cw[cwn + 3] = WakePoints[k + 2]
+						cw[cwn + 4] = WakePoints[k + 3]
+						cw[cwn + 5] = r
+						cw[cwn + 6] = (1 - age) ^ 1.2 * WakePoints[k + 8]
+						cwn += 6
 					end
 				end
 			end
@@ -309,7 +334,7 @@ Actor:BindToMessage('Compute', function(waves, Plane: MeshPart, EditableMesh: Ed
 
 						local VertexColor = LOWER_QUALITY == true and _settings.WAVE_COLORS.TROUGH or Helper.GetVertexColor(Transform.Y, 0, ShoreTransparency)
 						if cwn > 0 then
-							local Foam = GetFoam(SeaPosition.X, SeaPosition.Z, cw, cwn)
+							local Foam = GetFoam(SeaPosition.X, SeaPosition.Z, cw, cwn) * EdgeFade(vertex.X, vertex.Z)
 							if Foam > 0 then
 								VertexColor = VertexColor:Lerp(FOAM_COLOR, Foam * FOAM_MAX)
 								UpdateSecondary = true
@@ -372,7 +397,7 @@ Actor:BindToMessage('Compute', function(waves, Plane: MeshPart, EditableMesh: Ed
 				end
 				local HighColor = Helper.GetVertexColor(Transform.Y, VortexOffsetY, ShoreTransparency)
 				if cwn > 0 then
-					local Foam = GetFoam(SeaPosition.X, SeaPosition.Z, cw, cwn)
+					local Foam = GetFoam(SeaPosition.X, SeaPosition.Z, cw, cwn) * EdgeFade(vertex.X, vertex.Z)
 					if Foam > 0 then
 						HighColor = HighColor:Lerp(FOAM_COLOR, Foam * FOAM_MAX)
 					end
