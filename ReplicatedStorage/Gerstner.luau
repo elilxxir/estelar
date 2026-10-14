@@ -148,15 +148,16 @@ local GIANT = {
 	Drop = 10,      -- studs que la ola lejana (GiantWaveFar) queda por debajo del mar para no chocar con sus olas pequenas
 
 	-- // v13: realismo. Todo es determinista (solo depende de la hora del servidor y de la posicion).
-	FrontScale = 0.8, -- // El frente es mas empinado: su ancho es Width * FrontScale
+	FrontScale = 1.1, -- // Frente: su ancho es Width * FrontScale (antes 0.8, mas empinado; mas ancho = pendiente mas suave y menos estiramiento de textura)
 	BackScale = 1.3,  -- // La parte de atras es mas larga y suave: Width * BackScale
 	SurgeAmp = 90,    -- // La ola acelera y frena: se adelanta / atrasa hasta SurgeAmp studs (velocidad ~ Speed +- 2*pi*SurgeAmp/SurgePeriod)
 	SurgePeriod = 47, -- // Segundos de un ciclo de aceleracion
 	-- // La cresta no es una pared recta: se curva. Las longitudes deben dividir 2000 (ancho de las piezas de GiantWaveFar)
-	CrestAmp1 = 150, CrestLen1 = 2000, CrestPhase1 = 0.7,
-	CrestAmp2 = 60, CrestLen2 = 1000, CrestPhase2 = 2.1,
+	CrestAmp1 = 90, CrestLen1 = 2000, CrestPhase1 = 0.7, -- // antes 150
+	CrestAmp2 = 15, CrestLen2 = 1000, CrestPhase2 = 2.1, -- // antes 60
 	-- // Ondulacion que recorre la cresta (solo en el plano, se desvanece hacia su borde)
-	CrestDynAmp = 40, CrestDynLen = 500, CrestDynSpeed = 40,
+	CrestDynAmp = 6, CrestDynLen = 500, CrestDynSpeed = 40, -- // antes 40
+	RippleScale = 0.15, -- // Multiplica las olas internas de la ola gigante (1 = como antes, 0 = lisa)
 }
 
 Gerstner.GIANT_CONFIG = GIANT
@@ -225,7 +226,7 @@ function Gerstner.GetGiantShape(w0: number, Position: Vector3, t: number?, Edge:
 		for _, Rp in RIPPLES do
 			Ripple += Rp.Amp * sin(Rp.K * (Rp.Direction:Dot(Position) - Rp.Speed * tt) + Rp.Phase)
 		end
-		Height += Ripple * f * e
+		Height += Ripple * f * e * GIANT.RippleScale
 	end
 	return Height
 end
@@ -267,6 +268,11 @@ function Gerstner.ComputeTransform( Waves: { WaveInfo }, Position: Vector3, t: n
 	for i, Wave: WaveInfo in Waves do
 		local waveNumber, waveSpeed, waveAmplitude = Wave.WaveNumber * phaseMulti, Wave.WaveSpeed * speedMulti, Wave.WaveAmplitude * amplitudeMulti
 		Transform += Gerstner.ComputeWave(Position, t, waveNumber, waveSpeed, waveAmplitude, Wave.Direction)
+	end
+
+	-- // Cerca del borde del plano las olas pequenas se calman igual que la gigante, para no dejar un escalon contra los planos secundarios (planos)
+	if giantScale ~= nil and giantScale < 1 then
+		Transform *= giantScale
 	end
 
 	Transform += Gerstner.ComputeGiantWave(Position, t, giantScale)
