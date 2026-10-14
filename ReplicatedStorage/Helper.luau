@@ -173,6 +173,12 @@ function Helper.GetVertexColor(TransformY: number, VortexY: number, AlphaTranspa
 	end
 	
 	local VertexColor = COLOR_LOW:Lerp(COLOR_HIGH, min(((min(TransformY, COLOR_MAX_Y) + -1) * 4)  / 30, 1)) -- // v10: tope de altura para el color
+
+	-- // Modo lago: el color apenas cambia con olas de menos de 1 stud, asi que se anade contraste local para que se vean las mini olas.
+	-- // Se desvanece entre 2 y 4 studs, asi la ola gigante conserva su tono.
+	local Window = 1 - clamp((TransformY - 2) / 2, 0, 1)
+	local Contrast = clamp(TransformY, -1, 1) * (_settings.SMALL_WAVE_CONTRAST or 0.8) * Window
+	VertexColor = VertexColor:Lerp(Contrast > 0 and COLOR_HIGH or COLOR_LOW, math.abs(Contrast))
 	if AlphaTransparency < 1 then
 		return VertexColor:Lerp(SHORE_COLOR, 1 - (AlphaTransparency / GOLDEN_RATIO))
 	end

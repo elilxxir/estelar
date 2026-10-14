@@ -139,20 +139,20 @@ return {
 		GerstnerWave.new(Vector3.new(0.9, 0, -0.4).Unit,  470, 0.0022),
 		GerstnerWave.new(Vector3.new(0.6, 0, 0.8).Unit,   340, 0.0019),
 		-- // Olas medianas
-		GerstnerWave.new(Vector3.new(0.5, 0, -0.85).Unit, 170, 0.0040),
-		GerstnerWave.new(Vector3.new(0.85, 0, 0.3).Unit,  115, 0.0044),
-		GerstnerWave.new(Vector3.new(-0.2, 0, 0.95).Unit,  80, 0.0096), -- // v02 (antes 0.024)
+		GerstnerWave.new(Vector3.new(0.5, 0, -0.85).Unit, 170, 0.0060),
+		GerstnerWave.new(Vector3.new(0.85, 0, 0.3).Unit,  115, 0.0066),
+		GerstnerWave.new(Vector3.new(-0.2, 0, 0.95).Unit,  80, 0.0192), -- // v02 (antes 0.024)
 		-- // Rizado fino (cerca de la camara la malla es de 12 studs, asi que 36+ de largo se ve aceptable)
-		GerstnerWave.new(Vector3.new(0.4, 0, 0.9).Unit,    50, 0.0135), -- // v02 (antes 0.030)
-		GerstnerWave.new(Vector3.new(-0.7, 0, 0.45).Unit,  36, 0.0135), -- // v02 (antes 0.030)
+		GerstnerWave.new(Vector3.new(0.4, 0, 0.9).Unit,    50, 0.0270), -- // v02 (antes 0.030)
+		GerstnerWave.new(Vector3.new(-0.7, 0, 0.45).Unit,  36, 0.0270), -- // v02 (antes 0.030)
 		-- // v01: trenes extra en direcciones cruzadas. Rompen el patron repetitivo del mar quieto (interferencia entre olas).
 		-- // Cada ola cuesta calculo por vertice y por consulta de altura: si baja el rendimiento, comenta lineas de aqui.
 		-- // Todas >= 36 de largo (la malla cerca de la camara es de 12 studs). Suma de Steepness total ~0.30 (< 1, sin bucles).
-		GerstnerWave.new(Vector3.new(0.75, 0, -0.65).Unit, 260, 0.0036), -- // ~0.74 studs
-		GerstnerWave.new(Vector3.new(-0.45, 0, 0.9).Unit,  140, 0.0044), -- // ~0.49 studs
-		GerstnerWave.new(Vector3.new(0.95, 0, -0.2).Unit,   95, 0.0078), -- // ~0.39 studs
-		GerstnerWave.new(Vector3.new(-0.9, 0, -0.35).Unit,  65, 0.0090), -- // ~0.31 studs, rizado que viaja contra el viento
-		GerstnerWave.new(Vector3.new(0.1, 0, -1).Unit,      44, 0.0102), -- // ~0.24 studs, rizado fino lateral
+		GerstnerWave.new(Vector3.new(0.75, 0, -0.65).Unit, 260, 0.0054), -- // ~0.74 studs
+		GerstnerWave.new(Vector3.new(-0.45, 0, 0.9).Unit,  140, 0.0066), -- // ~0.49 studs
+		GerstnerWave.new(Vector3.new(0.95, 0, -0.2).Unit,   95, 0.0156), -- // ~0.39 studs
+		GerstnerWave.new(Vector3.new(-0.9, 0, -0.35).Unit,  65, 0.0180), -- // ~0.31 studs, rizado que viaja contra el viento
+		GerstnerWave.new(Vector3.new(0.1, 0, -1).Unit,      44, 0.0204), -- // ~0.24 studs, rizado fino lateral
 	},
 
 	ISLAND_SPEED_MULTIPLIER = 1.1,
@@ -172,6 +172,7 @@ return {
 	DEPTH_RAY_LENGTH = Vector3.new(0, -15, 0),
 	DEPTH_RAY_OFFSET = Vector3.new(0, 5, 0),
 
+	SMALL_WAVE_CONTRAST = 0.8, -- // Contraste de color para ver las mini olas (0 = sin contraste). Ver Helper.GetVertexColor
 	COLOR_MAX_HEIGHT = 2, -- // v10: tope de altura para el color de las olas. La ola gigante queda de un solo tono en vez de aclararse hasta casi blanco
 	GIANT_FAR_EXTRA_DROP = 14, -- // v10: studs extra que baja la ola lejana (GiantWaveFar). Debe ser > suma de amplitudes (~8.3) para que no asome a traves del plano
 	WHITECAP_HEIGHT = math.huge, -- // v09: sin espuma (antes 60). La ola gigante superaba ese umbral y se pintaba de blanco
