@@ -178,6 +178,85 @@ return {
 	WHITECAP_HEIGHT = math.huge, -- // v09: sin espuma (antes 60). La ola gigante superaba ese umbral y se pintaba de blanco
 	SHORE_TRANSPARENCY = 0.2,
 
+	-- // Vuelo de la nave (Serial/BoatDrive, StarterPlayerScripts/BoatDriver, ServerBoat/Handler).
+	-- // "Altura" = studs de la nave por encima de su altura de flotacion sobre la ola local (0 = flotando).
+	-- // La referencia de vuelo es la superficie de Gerstner muestreada (HeightLookup); los planos del mar no colisionan.
+	FLIGHT = {
+		ENABLED = true,
+		KEYS = {
+			Toggle = Enum.KeyCode.F, -- // Despegar / aterrizar (en aterrizaje: cancelar y volver a subir)
+			Up = Enum.KeyCode.Space, -- // Colectivo: subir
+			Down = Enum.KeyCode.LeftShift, -- // Colectivo: bajar
+			StrafeLeft = Enum.KeyCode.Q, -- // Alabeo (roll): aceleracion lateral
+			StrafeRight = Enum.KeyCode.E,
+		}, -- // W / S = cabeceo (pitch, aceleracion adelante / atras), A / D = guinada (yaw, rumbo)
+
+		-- // Alturas
+		MIN_CLEARANCE = 8, -- // Altura minima del punto de flotacion mas bajo sobre su ola (con la inclinacion del casco)
+		GATE_HEIGHT = 25, -- // Hasta esta altura no hay inclinacion horizontal ni aceleracion horizontal
+		GATE_BLEND = 15, -- // Studs sobre GATE_HEIGHT en los que la autoridad horizontal sube de 0 a 1
+		TAKEOFF_EXTRA = 20, -- // El despegue sube hasta GATE_HEIGHT + TAKEOFF_EXTRA
+		LIFTOFF_CLEARANCE = -2, -- // Piso duro durante Takeoff: puede empezar un poco hundida (flotando) sin que el piso la salte de golpe
+		TOUCHDOWN_CLEARANCE = 1, -- // Altura minima al aterrizar (el agua toma el control suavemente)
+		TOUCHDOWN_HEIGHT = 3, -- // El servidor pasa de Landing a Water por debajo de esta altura
+		MAX_ALTITUDE = 160, -- // Techo sobre el nivel del mar (PLANE_OFFSET.Y). Absoluto, NO relativo a la ola: la ola gigante no se puede sobrevolar
+		SWEPT_TOLERANCE = 2, -- // Si la ola sube por encima del techo mas esto, la nave es arrastrada (vuelve a Water)
+
+		-- // Vertical (colectivo)
+		MAX_CLIMB_RATE = 45, -- // studs/s
+		MAX_DESCENT_RATE = 35,
+		TAKEOFF_CLIMB_RATE = 18,
+		LAND_MAX_RATE = 14, -- // Velocidad de descenso al aterrizar lejos del agua
+		LAND_MIN_RATE = 3, -- // ...y cerca del agua
+		LAND_RATE_PER_HEIGHT = 0.5, -- // 1/s: rate = altura * esto, entre LAND_MIN_RATE y LAND_MAX_RATE
+		ALT_GAIN = 1.5, -- // 1/s: error de altura -> velocidad vertical deseada
+		VERT_GAIN = 4, -- // 1/s: error de velocidad vertical -> aceleracion
+		MAX_UP_ACCEL = 60, -- // studs/s^2
+		MAX_DOWN_ACCEL = 40,
+		ALT_LEAD = 30, -- // Cuanto puede adelantarse la altitud objetivo a la nave
+
+		-- // Horizontal (cabeceo / alabeo -> aceleracion)
+		MAX_SPEED = 140, -- // studs/s
+		HORIZ_ACCEL_MAX = 45, -- // studs/s^2 con la inclinacion maxima. La resistencia del aire es HORIZ_ACCEL_MAX / MAX_SPEED
+		MAX_TILT = 0.4, -- // rad
+		TILT_FREQ = 4, -- // rad/s
+		TILT_DAMPING = 0.85,
+		BRAKE_GAIN = 0.03, -- // rad de inclinacion de frenado por cada stud/s sobre el limite de velocidad
+		BRAKE_TILT_FRACTION = 0.8, -- // Fraccion de MAX_TILT disponible para frenar
+		TURN_RATE = math.rad(55), -- // rad/s
+		YAW_SMOOTH = 0.35, -- // s
+
+		-- // Aterrizaje: menos inclinacion y velocidad
+		LAND_TILT_SCALE = 0.35,
+		LAND_SPEED_SCALE = 0.3, -- // Limite de velocidad (fraccion) al empezar a aterrizar
+		LAND_MIN_SPEED_SCALE = 0.12, -- // ...y al llegar a GATE_HEIGHT o menos
+
+		-- // Muestreo hacia adelante: mira la altura de la ola a lo largo de la trayectoria
+		LOOKAHEAD_TIMES = { 0.5, 1, 1.75, 2.75 }, -- // s hacia el futuro (posicion = velocidad * t, ola = hora del servidor + t)
+		LOOK_INTERVAL = 0.05, -- // s entre muestreos
+		LOOK_MARGIN = 4, -- // studs extra de margen sobre MIN_CLEARANCE al mirar hacia adelante
+		LOOK_RATE_FRACTION = 0.7, -- // Fraccion de MAX_CLIMB_RATE que se considera "al limite del controlador"
+		MIN_SPEED_SCALE = 0.15, -- // Tope inferior del limite de velocidad por muestreo hacia adelante
+		MIN_TILT_SCALE = 0.35,
+		SCALE_ATTACK = 0.15, -- // s: cuanto tarda en reducir los limites (rapido)
+		SCALE_RELEASE = 1.2, -- // s: cuanto tarda en recuperarlos (lento)
+		TARGET_RISE_RATE = 40, -- // studs/s: tope al cambio del objetivo de altura minima (debe ser <= MAX_CLIMB_RATE)
+		TARGET_FALL_RATE = 12,
+		TARGET_SMOOTH = 0.25, -- // s
+
+		-- // Validacion del servidor
+		VALIDATE_INTERVAL = 0.25, -- // s entre comprobaciones
+		SERVER_TOLERANCE = 1.6, -- // Multiplicador de los limites (jitter de replicacion)
+		CLEARANCE_TOLERANCE = 4, -- // studs
+		CEILING_TOLERANCE = 10, -- // studs
+		UNAUTHORIZED_HEIGHT = 80, -- // En modo Water, mas alto que esto durante 2 comprobaciones = vuelo no autorizado
+		STRIKES_TO_ENFORCE = 3, -- // Comprobaciones seguidas con infraccion antes de tomar el control
+		LOCKOUT_SECONDS = 8, -- // Sin despegar tras una infraccion
+		SWEPT_LOCKOUT_SECONDS = 6, -- // Sin despegar tras ser arrastrado por la ola
+		REQUEST_COOLDOWN = 0.5, -- // s entre peticiones del cliente
+		ALLOW_IN_WHIRLPOOL = false,
+	},
+
 	-- // DEBUG
 	-- // Known issues thread: https://devforum.roblox.com/t/client-beta-in-experience-mesh-image-apis-now-available-in-published-experiences/3267293
 	DISABLE_CHUNK_CULLING = true, -- // Actualiza todos los chunks aunque no esten en pantalla (evita vertices congelados / estirados)

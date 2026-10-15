@@ -356,12 +356,14 @@ local function update(s)
 	s.prevPos, s.prevClock = pos, clock
 	local vel = s.vel
 	local speed = Vector3.new(vel.X, 0, vel.Z).Magnitude
-	local active = speed > MIN_SPEED
+	-- En vuelo (FlightMode ~= Water, ver Serial/BoatDrive) la nave no toca el agua: sin estela ni salpicaduras
+	local OnWater = (s.seat.Parent:GetAttribute("FlightMode") or "Water") == "Water"
+	local active = speed > MIN_SPEED and OnWater
 	s.frame += 1
 
 	-- Impact splash: sudden positive change in vertical velocity (hull hitting water / wave)
 	local dv = vel.Y - s.prevVy
-	if dv > IMPACT_MIN_DV and now - s.lastImpact > IMPACT_COOLDOWN then
+	if OnWater and dv > IMPACT_MIN_DV and now - s.lastImpact > IMPACT_COOLDOWN then
 		s.lastImpact = now
 		doImpact(s, math.clamp(dv / 60, 0.2, 1))
 	end
