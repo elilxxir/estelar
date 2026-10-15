@@ -72,6 +72,7 @@ FlightEvent.Parent = Boat
 Boat:SetAttribute('FlightMode', 'Water') -- // 'Water' | 'Takeoff' | 'Flight' | 'Landing'
 
 local FlightLockUntil = 0 -- // os.clock() hasta el que no se puede despegar
+local LandingLowSince: number? = nil -- // v16: desde cuando esta en Landing a poca altura sin terminar de bajar
 local ServerControl = false -- // true: el cliente del piloto esta suspendido y el servidor aterriza la nave
 local LastRequest = {}
 local Track = BoatDrive.NewTrack()
@@ -94,6 +95,7 @@ local function SetFlightMode(Mode: string)
 	BoatDrive.SetMode(Drive, Mode)
 	BoatDrive.ResetTrack(Track)
 	Track.Strikes = 0
+	LandingLowSince = nil
 end
 
 -- // Devuelve el control al piloto despues de un aterrizaje forzado
@@ -215,9 +217,19 @@ RunService.PostSimulation:Connect(function(dt)
 		ReleaseControl()
 	elseif Mode == 'Takeoff' and Measure.Height >= FLIGHT.GATE_HEIGHT + FLIGHT.GATE_BLEND then
 		SetFlightMode('Flight')
-	elseif Mode == 'Landing' and Measure.Height <= FLIGHT.TOUCHDOWN_HEIGHT then
-		SetFlightMode('Water')
-		ReleaseControl()
+	elseif Mode == 'Landing' then
+		local Touched = Measure.Height <= FLIGHT.TOUCHDOWN_HEIGHT
+		if not Touched and Measure.Height <= FLIGHT.TOUCHDOWN_HEIGHT + FLIGHT.TOUCHDOWN_STUCK_MARGIN then
+			-- // v16: baja pero sin llegar al umbral (el piso la mantiene un poco arriba): si se queda asi, se da por aterrizada
+			LandingLowSince = LandingLowSince or os.clock()
+			Touched = os.clock() - LandingLowSince >= FLIGHT.TOUCHDOWN_STUCK_TIME
+		elseif not Touched then
+			LandingLowSince = nil
+		end
+		if Touched then
+			SetFlightMode('Water')
+			ReleaseControl()
+		end
 	end
 end)
 

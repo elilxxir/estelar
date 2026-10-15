@@ -200,7 +200,9 @@ return {
 		TAKEOFF_EXTRA = 20, -- // El despegue sube hasta GATE_HEIGHT + TAKEOFF_EXTRA
 		LIFTOFF_CLEARANCE = -2, -- // Piso duro durante Takeoff: puede empezar un poco hundida (flotando) sin que el piso la salte de golpe
 		TOUCHDOWN_CLEARANCE = 1, -- // Altura minima al aterrizar (el agua toma el control suavemente)
-		TOUCHDOWN_HEIGHT = 3, -- // El servidor pasa de Landing a Water por debajo de esta altura
+		TOUCHDOWN_HEIGHT = 6, -- // El servidor pasa de Landing a Water por debajo de esta altura. v16: antes 3; el piso (inclinacion, olas, mirada hacia adelante) deja a la nave justo por encima y nunca aterrizaba
+		TOUCHDOWN_STUCK_MARGIN = 6, -- // v16: si la nave se queda entre TOUCHDOWN_HEIGHT y TOUCHDOWN_HEIGHT + esto sin bajar...
+		TOUCHDOWN_STUCK_TIME = 1, -- // v16: ...durante tantos segundos, el servidor la da por aterrizada (pasa a Water)
 		MAX_ALTITUDE = 160, -- // Techo sobre el nivel del mar (PLANE_OFFSET.Y). Absoluto, NO relativo a la ola: la ola gigante no se puede sobrevolar
 		SWEPT_TOLERANCE = 2, -- // Si la ola sube por encima del techo mas esto, la nave es arrastrada (vuelve a Water)
 

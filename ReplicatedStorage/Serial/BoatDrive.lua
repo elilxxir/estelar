@@ -54,14 +54,16 @@ local AIR_MARGIN = 3 -- // Studs sobre su altura de flotacion a partir de los cu
 local AIR_DRAG = 0.1 -- // 1/s. Resistencia del aire al caer
 
 -- // Inclinacion
-local TILT_FREQ = 5 -- // rad/s. Mas alto = se inclina mas rapido
-local TILT_DAMPING = 0.8
-local TILT_FOLLOW = 0.8 -- // Que fraccion de la pendiente de la ola copia la nave
-local MAX_TILT = 0.7 -- // Inclinacion maxima (radianes)
+local TILT_FREQ = 10 -- // rad/s. Mas alto = se inclina mas rapido (v16: antes 5, se quedaba atras en la ola gigante)
+local TILT_DAMPING = 0.85
+local TILT_FOLLOW = 1 -- // Que fraccion de la pendiente de la ola copia la nave (v16: 1 = la misma inclinacion)
+local MAX_TILT = 1.1 -- // Inclinacion maxima (radianes). v16: la ola gigante llega a ~1.05 rad de pendiente (antes 0.7)
 local AIR_TILT_DAMPING = 0.5 -- // 1/s. Frenado de la rotacion mientras esta en el aire
 
 -- // Pendiente
 local SLOPE_GRAVITY = 0.6 -- // Fraccion de la gravedad que frena / acelera la nave en las pendientes
+local SLOPE_DOWNHILL_SCALE = 0 -- // v16: fraccion de esa fuerza que SUMA velocidad al bajar una ola (0 = la ola solo frena, nunca acelera)
+local HULL_CLEARANCE = -1.5 -- // v16: studs que un punto de flotacion puede hundirse bajo su nivel de flotacion (colision con la ola)
 
 local RATE_PROBE = 0.1 -- // Segundos hacia el futuro para medir la velocidad vertical de la ola
 local ZONE_REFRESH = 3 -- // Segundos entre busquedas de zona
@@ -75,6 +77,15 @@ local function Average(Values: { number }, Indices: { number }): number
 	local Sum = 0
 	for _, i in Indices do
 		Sum += Values[i]
+	end
+	return Sum / #Indices
+end
+
+-- // Promedio de la posicion de los puntos indicados proyectada sobre un eje (para medir la separacion horizontal real)
+local function AverageAlong(Points, Indices: { number }, Axis: Vector3): number
+	local Sum = 0
+	for _, i in Indices do
+		Sum += Points[i].WorldPosition:Dot(Axis)
 	end
 	return Sum / #Indices
 end
@@ -119,6 +130,10 @@ function BoatDrive.new(Boat: Model, Seat: VehicleSeat)
 	for i = 1, 4 do
 		MeanY += Offsets[i].Y / 4
 	end
+	local MaxDrop = 0 -- // Cuanto mas bajo que el promedio esta el punto mas bajo (para no elevar la nave en reposo)
+	for i = 1, 4 do
+		MaxDrop = math.max(MaxDrop, MeanY - Offsets[i].Y)
+	end
 
 	local Look = Seat.CFrame.LookVector
 	local Yaw = math.atan2(-Look.X, -Look.Z)
@@ -136,6 +151,7 @@ function BoatDrive.new(Boat: Model, Seat: VehicleSeat)
 		Length = Length,
 		Width = Width,
 		BaseHeight = Main.Size.Y / 2,
+		FloorSlack = HULL_CLEARANCE - MaxDrop, -- // v16: claridad minima del piso duro en agua
 		RestOffset = Main.Size.Y / 2 + MeanY, -- // Altura del punto de flotacion medio sobre su ola cuando flota (claridad 0)
 
 		-- // Vuelo
@@ -657,7 +673,11 @@ function BoatDrive.Step(self, dt: number, Throttle: number, Steer: number, Idle:
 	else
 		-- // En pendiente sube = -; la nave pierde velocidad subiendo y la gana bajando (solo si toca el agua)
 		local SlopeSin = self.SlopeForward / math.sqrt(1 + self.SlopeForward * self.SlopeForward)
-		Speed -= SLOPE_GRAVITY * Gravity * SlopeSin * (self.Contact or 1) * dt
+		local SlopeAccel = SLOPE_GRAVITY * Gravity * SlopeSin * (self.Contact or 1)
+		if SlopeAccel < 0 then
+			SlopeAccel *= SLOPE_DOWNHILL_SCALE -- // v16: bajar una ola ya no da velocidad extra
+		end
+		Speed -= SlopeAccel * dt
 	end
 	Speed = math.clamp(Speed, -MAX_REVERSE_SPEED, MAX_SPEED)
 	self.Speed = Speed
@@ -683,12 +703,24 @@ function BoatDrive.Step(self, dt: number, Throttle: number, Steer: number, Idle:
 		local SurfaceHeight = Average(Now, All)
 		local SurfaceRate = (Average(Probe, All) - SurfaceHeight) / RATE_PROBE
 
-		local SlopeForward = (Average(Now, self.FrontIndices) - Average(Now, self.BackIndices)) / self.Length
-		local SlopeSide = (Average(Now, self.RightIndices) - Average(Now, self.LeftIndices)) / self.Width
+		-- // v16: la pendiente se mide con la separacion horizontal REAL de los puntos (con la nave inclinada es menor que
+		-- // Length / Width). Antes subestimaba la pendiente: una ola de 60 grados daba ~40 y la nariz se hundia en ella.
+		local Right = YawCF.RightVector
+		local SepForward = math.max(AverageAlong(Points, self.FrontIndices, Flat) - AverageAlong(Points, self.BackIndices, Flat), 1)
+		local SepSide = math.max(AverageAlong(Points, self.RightIndices, Right) - AverageAlong(Points, self.LeftIndices, Right), 1)
+		local SlopeForward = (Average(Now, self.FrontIndices) - Average(Now, self.BackIndices)) / SepForward
+		local SlopeSide = (Average(Now, self.RightIndices) - Average(Now, self.LeftIndices)) / SepSide
 		self.SlopeForward = SlopeForward
 
 		-- // Altura: resorte amortiguado hacia la superficie mientras toca el agua; caida libre si la pierde
-		local Offset = SurfaceHeight + self.BaseHeight - Pos.Y -- // > 0: la nave esta por debajo de su altura de flotacion
+		-- // v16: el objetivo es el mayor entre la altura media y el piso del casco (ningun punto bajo la ola), asi el resorte
+		-- // levanta la nave suavemente cuando la ola sube por un costado en vez de dejar que la atraviese.
+		local Dy = {}
+		for i = 1, 4 do
+			Dy[i] = Rotation:VectorToWorldSpace(self.Offsets[i]).Y
+		end
+		local Target = math.max(SurfaceHeight + self.BaseHeight, FloorFrom(self, Now, Dy, self.FloorSlack))
+		local Offset = Target - Pos.Y -- // > 0: la nave esta por debajo de su altura de flotacion
 		local Contact = math.clamp(1 + Offset / AIR_MARGIN, 0, 1)
 		self.Contact = Contact
 
@@ -716,6 +748,18 @@ function BoatDrive.Step(self, dt: number, Throttle: number, Steer: number, Idle:
 		self.RollRate += RollAccel * dt
 		self.Pitch = math.clamp(self.Pitch + self.PitchRate * dt, -MAX_TILT * 1.3, MAX_TILT * 1.3)
 		self.Roll = math.clamp(self.Roll + self.RollRate * dt, -MAX_TILT * 1.3, MAX_TILT * 1.3)
+
+		-- // v16: colision dura. Con la inclinacion ya actualizada, ningun punto del casco puede quedar bajo la ola.
+		local Final = YawCF * CFrame.fromEulerAnglesXYZ(self.Pitch, 0, self.Roll)
+		for i = 1, 4 do
+			Dy[i] = Final:VectorToWorldSpace(self.Offsets[i]).Y
+		end
+		local HardFloor = FloorFrom(self, Now, Dy, self.FloorSlack)
+		if Pos.Y < HardFloor then
+			Pos = Vector3.new(Pos.X, HardFloor, Pos.Z)
+			self.Position = Pos
+			self.VerticalSpeed = math.max(self.VerticalSpeed, SurfaceRate) -- // sube con la ola, sin seguir hundiendose
+		end
 	end
 
 	self.CFrame = CFrame.new(Pos) * YawCF * CFrame.fromEulerAnglesXYZ(self.Pitch, 0, self.Roll)
