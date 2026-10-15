@@ -185,8 +185,8 @@ return {
 		ENABLED = true,
 		KEYS = {
 			Toggle = Enum.KeyCode.F, -- // Despegar / aterrizar (en aterrizaje: cancelar y volver a subir)
-			Up = Enum.KeyCode.Q, -- // v14: subir (propulsores verticales, gas hacia abajo)
-			Down = Enum.KeyCode.E, -- // v14: bajar (gas hacia arriba)
+			Up = Enum.KeyCode.E, -- // v14: subir (propulsores verticales, gas hacia abajo)
+			Down = Enum.KeyCode.Q, -- // v14: bajar (gas hacia arriba)
 			BoostForward = Enum.KeyCode.Space, -- // v14: propulsores principales, empuje adelante
 			BoostBack = Enum.KeyCode.LeftShift, -- // v14: propulsores principales, empuje atras / freno
 			RollLeft = Enum.KeyCode.A, -- // v14: alabeo (inclina y vira)
