@@ -187,11 +187,11 @@ return {
 			Toggle = Enum.KeyCode.F, -- // Despegar / aterrizar (en aterrizaje: cancelar y volver a subir)
 			Up = Enum.KeyCode.E, -- // v14: subir (propulsores verticales, gas hacia abajo)
 			Down = Enum.KeyCode.Q, -- // v14: bajar (gas hacia arriba)
-			BoostForward = Enum.KeyCode.Space, -- // v14: propulsores principales, empuje adelante
-			BoostBack = Enum.KeyCode.LeftShift, -- // v14: propulsores principales, empuje atras / freno
+			PitchUp = Enum.KeyCode.Space, -- // v16: nariz arriba
+			PitchDown = Enum.KeyCode.LeftShift, -- // v16: nariz abajo
 			RollLeft = Enum.KeyCode.A, -- // v14: alabeo (inclina y vira)
 			RollRight = Enum.KeyCode.D,
-		}, -- // W / S = cabeceo (inclina y acelera un poco). En modo agua W / A / S / D siguen siendo el volante del VehicleSeat
+		}, -- // v16: W / S = propulsores principales (adelante / atras, Seat.Throttle). En modo agua W / A / S / D siguen siendo el volante del VehicleSeat
 
 		-- // Alturas
 		MIN_CLEARANCE = 8, -- // Altura minima del punto de flotacion mas bajo sobre su ola (con la inclinacion del casco)
