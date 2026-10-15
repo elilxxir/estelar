@@ -194,6 +194,9 @@ end
 
 -- // Posicion (a lo largo de Direction) de uno de los pulsos en el instante t. Los demas estan a +- k * Spacing.
 -- // v13: ademas se adelanta y atrasa (SurgeAmp), asi su velocidad no es constante.
+-- // Cada Spacing / Speed segundos (200 s) el modulo salta exactamente Spacing, pero ComputeGiantWave reduce la distancia
+-- // modulo Spacing, asi que la altura es continua al cruzarlo. El muestreo hacia adelante del vuelo (BoatDrive) solo suma
+-- // t a la hora del servidor, por lo que tampoco ve ningun salto.
 function Gerstner.GetGiantWaveCenter(t: number): number
 	return GIANT.Start + (GIANT.Speed * t) % GIANT.Spacing + GIANT.SurgeAmp * sin(TwoPi * t / GIANT.SurgePeriod)
 end

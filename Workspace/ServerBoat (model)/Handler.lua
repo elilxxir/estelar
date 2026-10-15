@@ -59,12 +59,186 @@ pcall(function()
 	VehicleSeat:SetNetworkOwner(nil)
 end)
 
+-- ============================================================
+--  VUELO. El servidor concede los modos (atributo FlightMode, que el cliente copia), valida lo que el piloto
+--  replica y, si hay infracciones, toma el control de la nave y la aterriza (ver Serial/BoatDrive y Settings.FLIGHT).
+-- ============================================================
+
+local FLIGHT = require(game.ReplicatedStorage.Gerstner.Settings).FLIGHT
+
+local FlightEvent = Instance.new('RemoteEvent')
+FlightEvent.Name = 'FlightEvent'
+FlightEvent.Parent = Boat
+Boat:SetAttribute('FlightMode', 'Water') -- // 'Water' | 'Takeoff' | 'Flight' | 'Landing'
+
+local FlightLockUntil = 0 -- // os.clock() hasta el que no se puede despegar
+local ServerControl = false -- // true: el cliente del piloto esta suspendido y el servidor aterriza la nave
+local LastRequest = {}
+local Track = BoatDrive.NewTrack()
+local ValidateTimer = 0
+local LastVelocity = Vector3.zero
+
+local function GetDriver(): Player?
+	local Occupant = VehicleSeat.Occupant
+	if Occupant == nil then
+		return nil
+	end
+	return Players:GetPlayerFromCharacter(Occupant.Parent)
+end
+
+local function SetFlightMode(Mode: string)
+	if Boat:GetAttribute('FlightMode') == Mode then
+		return
+	end
+	Boat:SetAttribute('FlightMode', Mode)
+	BoatDrive.SetMode(Drive, Mode)
+	BoatDrive.ResetTrack(Track)
+	Track.Strikes = 0
+end
+
+-- // Devuelve el control al piloto despues de un aterrizaje forzado
+local function ReleaseControl()
+	if not ServerControl then
+		return
+	end
+	ServerControl = false
+	local Driver = GetDriver()
+	if Driver then
+		pcall(function()
+			VehicleSeat:SetNetworkOwner(Driver)
+		end)
+		FlightEvent:FireClient(Driver, 'Resume')
+	end
+end
+
+-- // Infraccion confirmada: se suspende al cliente, el servidor toma la nave desde su posicion replicada (con el techo
+-- // aplicado) y la aterriza solo. No se puede volver a despegar durante LOCKOUT_SECONDS.
+local function Enforce(Reason: string)
+	warn(`[Vuelo] {Boat.Name}: {Reason}. Aterrizaje forzado.`)
+	FlightLockUntil = os.clock() + FLIGHT.LOCKOUT_SECONDS
+	Drive = BoatDrive.new(Boat, VehicleSeat)
+	local Position = Drive.Position
+	Drive.Position = Vector3.new(Position.X, math.min(Position.Y, BoatDrive.GetCeiling()), Position.Z)
+	BoatDrive.SetMode(Drive, 'Landing')
+	local Horizontal = Vector3.new(LastVelocity.X, 0, LastVelocity.Z)
+	if Horizontal.Magnitude > FLIGHT.MAX_SPEED then
+		Horizontal = Horizontal.Unit * FLIGHT.MAX_SPEED
+	end
+	Drive.Vel = Horizontal
+	Drive.VerticalSpeed = math.clamp(LastVelocity.Y, -FLIGHT.MAX_DESCENT_RATE, FLIGHT.MAX_CLIMB_RATE)
+	Boat:SetAttribute('FlightMode', 'Landing')
+	BoatDrive.ResetTrack(Track)
+	Track.Strikes = 0
+
+	ServerControl = true
+	pcall(function()
+		VehicleSeat:SetNetworkOwner(nil)
+	end)
+	local Driver = GetDriver()
+	if Driver then
+		FlightEvent:FireClient(Driver, 'ServerControl', Reason)
+	end
+end
+
+-- // Peticiones del piloto. El servidor decide si las concede.
+FlightEvent.OnServerEvent:Connect(function(Player: Player, Action: any)
+	if typeof(Action) ~= 'string' or not FLIGHT.ENABLED or ServerControl or Player ~= GetDriver() then
+		return
+	end
+	local Now = os.clock()
+	if Now - (LastRequest[Player] or 0) < FLIGHT.REQUEST_COOLDOWN then
+		return
+	end
+	LastRequest[Player] = Now
+
+	local Mode = Boat:GetAttribute('FlightMode')
+	if Action == 'Takeoff' then
+		if Mode == 'Water' then
+			if Now < FlightLockUntil then
+				return
+			end
+			local Zone = ZoneManager:GetZoneParameters(VehicleSeat.Position)
+			if Zone ~= nil and Zone.Type == 'Whirlpool' and not FLIGHT.ALLOW_IN_WHIRLPOOL then
+				return
+			end
+			SetFlightMode('Takeoff')
+		elseif Mode == 'Landing' then
+			-- // Cancelar el aterrizaje: vuelve a Flight si ya esta sobre la altura de GATE_HEIGHT, si no re-despega
+			local Measure = BoatDrive.Measure(Drive, VehicleSeat.CFrame)
+			SetFlightMode(if Measure ~= nil and Measure.Height >= FLIGHT.GATE_HEIGHT then 'Flight' else 'Takeoff')
+		end
+	elseif Action == 'Land' then
+		if Mode == 'Flight' or Mode == 'Takeoff' then
+			SetFlightMode('Landing')
+		end
+	end
+end)
+Players.PlayerRemoving:Connect(function(Player)
+	LastRequest[Player] = nil
+end)
+
+-- // Validacion y transiciones automaticas, cada VALIDATE_INTERVAL
+RunService.PostSimulation:Connect(function(dt)
+	ValidateTimer += dt
+	if ValidateTimer < FLIGHT.VALIDATE_INTERVAL then
+		return
+	end
+	local Interval = ValidateTimer
+	ValidateTimer = 0
+	LastVelocity = VehicleSeat.AssemblyLinearVelocity
+
+	local Mode = Boat:GetAttribute('FlightMode')
+	local Reason, Measure
+	if GetDriver() ~= nil and not ServerControl then
+		Reason, Measure = BoatDrive.Validate(Drive, Track, Interval, VehicleSeat.CFrame, Mode)
+	elseif Mode ~= 'Water' then
+		Measure = BoatDrive.Measure(Drive, VehicleSeat.CFrame, Interval)
+	end
+	if Measure == nil then
+		return
+	end
+
+	if Reason ~= nil then
+		Track.Strikes += 1
+		if Track.Strikes >= FLIGHT.STRIKES_TO_ENFORCE then
+			Enforce(Reason)
+			return
+		end
+	else
+		Track.Strikes = math.max(Track.Strikes - 1, 0)
+	end
+
+	if Mode ~= 'Water' and Measure.Swept then
+		-- // La ola gigante supero el techo: la nave es arrastrada (no es una infraccion)
+		FlightLockUntil = os.clock() + FLIGHT.SWEPT_LOCKOUT_SECONDS
+		SetFlightMode('Water')
+		ReleaseControl()
+	elseif Mode == 'Takeoff' and Measure.Height >= FLIGHT.GATE_HEIGHT + FLIGHT.GATE_BLEND then
+		SetFlightMode('Flight')
+	elseif Mode == 'Landing' and Measure.Height <= FLIGHT.TOUCHDOWN_HEIGHT then
+		SetFlightMode('Water')
+		ReleaseControl()
+	end
+end)
+
+-- // Retoma la nave desde su posicion actual (al bajarse el piloto). Si estaba en vuelo, aterriza sola.
+local function RebuildDrive()
+	Drive = BoatDrive.new(Boat, VehicleSeat)
+	if Boat:GetAttribute('FlightMode') ~= 'Water' then
+		BoatDrive.SetMode(Drive, 'Landing')
+		Drive.Vel = Vector3.new(LastVelocity.X, 0, LastVelocity.Z)
+		Drive.VerticalSpeed = LastVelocity.Y
+		Boat:SetAttribute('FlightMode', 'Landing')
+		BoatDrive.ResetTrack(Track)
+	end
+end
+
 -- // El piloto es el dueno de la fisica de la nave: asi la ve sincronizada con la ola.
 VehicleSeat:GetPropertyChangedSignal('Occupant'):Connect(function()
 	local Occupant = VehicleSeat.Occupant
 	if Occupant ~= nil then
 		local Driver = Players:GetPlayerFromCharacter(Occupant.Parent)
-		if Driver then
+		if Driver and not ServerControl then
 			pcall(function()
 				VehicleSeat:SetNetworkOwner(Driver)
 			end)
@@ -73,7 +247,8 @@ VehicleSeat:GetPropertyChangedSignal('Occupant'):Connect(function()
 		pcall(function()
 			VehicleSeat:SetNetworkOwner(nil)
 		end)
-		Drive = BoatDrive.new(Boat, VehicleSeat) -- // Retoma desde donde quedo la nave
+		ServerControl = false
+		RebuildDrive() -- // Retoma desde donde quedo la nave
 	end
 end)
 
@@ -81,9 +256,10 @@ ZoneManager.ZoneUpdated:Connect(function()
 	BoatDrive.UpdateZone(Drive)
 end)
 
--- // Sin piloto, el servidor mueve la nave (queda flotando sobre la ola)
+-- // Sin piloto (o con el servidor al mando tras una infraccion), el servidor mueve la nave:
+-- // flota sobre la ola, o aterriza si estaba en vuelo
 RunService.PreSimulation:Connect(function(dt)
-	if VehicleSeat.Occupant == nil then
+	if VehicleSeat.Occupant == nil or ServerControl then
 		BoatDrive.Step(Drive, dt, 0, 0, true)
 		BoatDrive.Apply(Drive)
 	end

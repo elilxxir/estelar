@@ -27,14 +27,17 @@ Sys:
 * Add multiple cameras attached to the ship for immersion.
 * Add enter driver/passenger seats prompt by the ship door:
   (Include entering, exiting sound).
-* Ship's ability to fly -under consideration:
-  * Keep a sampled Gerstner surface as the hover/flight reference; keep rendered ocean planes non-collidable.
-  * Treat takeoff, flight, and landing as separate control states. During flight, use helicopter-like controls: pitch/roll for horizontal acceleration, yaw for heading, and collective for vertical movement.
-  * Enforce minimum clearance using wave-height samples at all four buoyancy points, accounting for hull tilt. Do not allow descent commands to cross this safety limit.
-  * Gate horizontal tilt and acceleration until the ship clears a configurable height above the local wave. Reduce tilt and horizontal speed while landing.
-  * Sample wave height ahead along the flight path. Limit horizontal speed and tilt when the required vertical response exceeds controller limits; smooth transitions and cap changes to the clearance target.
-  * Validate the flight state and forces on the server. Resolve the 90-second giant-wave wrap before relying on lookahead for safety.
-  * This is a design proposal; Fly is not implemented yet.
+* Ship's ability to fly -implemented, needs in-game tuning (all values in Settings > FLIGHT):
+  * Controls: F take off / land (while landing: cancel). In flight: W/S pitch (forward/back acceleration), Q/E roll (sideways acceleration), A/D yaw (heading), Space/Left Shift collective (up/down). Space is sunk while flying so the pilot isn't ejected from the seat.
+  * States (BoatDrive.Mode, granted by the server through the Boat's FlightMode attribute): Water > Takeoff > Flight > Landing > Water. Takeoff climbs by itself past the gate; Landing descends by itself and hands over to the water simulation.
+  * Hover/flight reference is the sampled Gerstner surface (HeightLookup, giant wave included); the rendered ocean planes stay non-collidable.
+  * Hard floor: wave height under the 4 buoyancy points, with hull tilt (MIN_CLEARANCE). Descent commands can't cross it (the altitude target is clamped to it), and position is clamped to it as a last resort.
+  * Gate: no horizontal tilt or acceleration until the ship is GATE_HEIGHT above the local wave (blends in over GATE_BLEND). While landing, tilt and speed limits drop (LAND_TILT_SCALE, LAND_SPEED_SCALE) and shrink further close to the water.
+  * Lookahead: every LOOK_INTERVAL the wave is sampled along position + velocity * t (wave at server time + t). If the climb needed exceeds LOOK_RATE_FRACTION of MAX_CLIMB_RATE, horizontal speed and tilt limits drop (fast attack, slow release). The clearance target is smoothed and its rate of change is capped (TARGET_RISE_RATE / TARGET_FALL_RATE).
+  * Ceiling: MAX_ALTITUDE above sea level (absolute, not relative to the wave) so the giant wave can't be flown over. If the wave rises above the ceiling the ship is swept (back to Water, no takeoff for SWEPT_LOCKOUT_SECONDS).
+  * Server (ServerBoat/Handler + BoatDrive.Validate): grants/denies takeoff, promotes Takeoff > Flight and Landing > Water from its own wave samples, and every VALIDATE_INTERVAL checks the replicated pilot's state: ceiling, clearance, horizontal speed, horizontal acceleration, vertical speed, and flying while in Water mode. After STRIKES_TO_ENFORCE violations in a row it takes the ship over (client suspended, ship auto-lands) and locks takeoff for LOCKOUT_SECONDS. An empty ship that was flying lands by itself.
+  * Giant-wave wrap: the old "90 s" note no longer applies (Spacing / Speed is now 200 s). GetGiantWaveCenter jumps by exactly Spacing each cycle, but ComputeGiantWave reduces the distance modulo Spacing, so the height is continuous across the wrap and lookahead sampling (which just adds t) is too. The surge term is continuous as well.
+  * TODO: HUD (mode, height, ceiling warning), gamepad bindings, flight sounds/effects (BoatWake already stops wake/splash while not in Water).
 * Improve sea foam/movement/waves (lake-like):
   * Add a few low-amplitude wave components to the existing Gerstner waves.
   * Use seeded, deterministic variation so every client sees the same motion—avoid changing wave parameters randomly each frame, which can flicker or desync.
