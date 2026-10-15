@@ -4,6 +4,8 @@
 -- (cada punto es un segmento desde la posicion anterior de su cadena: estela continua, sin "manchas")
 
 local CS = game:GetService("CollectionService")
+local HeightLookup = require(script.Parent.Parent.HeightLookup)
+local FLIGHT = require(script.Parent.Parent.Settings).FLIGHT
 
 local STRIDE = 9
 local MIN_SPEED = 6
@@ -57,6 +59,7 @@ local function register(boat)
 	end
 
 	boats[boat] = {
+		boat = boat,
 		props = props,
 		main = main,
 		bow = { list[1], list[2] },
@@ -121,10 +124,21 @@ function WakeTracker.Update()
 		end
 		b.prevPos, b.prevClock = center, clock
 		local speed = Vector3.new(b.vel.X, 0, b.vel.Z).Magnitude
-		if speed > MIN_SPEED and now - b.lastT >= INTERVAL and (center - b.lastPos).Magnitude >= MIN_DIST then
+		-- // v14: en vuelo solo hay estela cerca del agua; se desvanece entre WAKE_FULL_HEIGHT y WAKE_HEIGHT
+		local fade = 1
+		if (b.boat:GetAttribute("FlightMode") or "Water") ~= "Water" then
+			local h = HeightLookup.Lookup(center, "PRECISE", false)
+			if h == -1 then
+				fade = 0
+			else
+				local Height = center.Y - h - main.Size.Y / 2
+				fade = math.clamp(1 - (Height - FLIGHT.WAKE_FULL_HEIGHT) / (FLIGHT.WAKE_HEIGHT - FLIGHT.WAKE_FULL_HEIGHT), 0, 1)
+			end
+		end
+		if fade > 0.05 and speed > MIN_SPEED and now - b.lastT >= INTERVAL and (center - b.lastPos).Magnitude >= MIN_DIST then
 			b.lastT = now
 			b.lastPos = center
-			local strength = math.clamp(speed / SPEED_FULL, 0.4, 1)
+			local strength = math.clamp(speed / SPEED_FULL, 0.4, 1) * fade
 			if #b.props > 0 then
 				-- una estela por cada Propulsor
 				for i, part in b.props do

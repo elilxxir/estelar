@@ -382,37 +382,38 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 	self.PrevFloorTarget = FloorCurrent
 	self.FloorTarget = FloorCurrent + FloorStep
 
-	-- // 5. Inclinacion y aceleracion horizontal. Cabeceo (W / S) y alabeo (Q / E) piden inclinacion; la aceleracion sale de la
-	-- // inclinacion real del casco (con inercia). Nariz abajo (pitch < 0) = adelante; lado derecho abajo (roll < 0) = derecha.
-	local TiltAuthority = Authority * self.TiltScale * LandTilt
+	-- // 5. v14: empuje directo, no helicoptero. W / S (adelante / atras) y A / D (lateral) aceleran la nave directamente, sin
+	-- // inclinarla. Cabeceo y alabeo son solo visuales: nariz arriba / abajo al subir / bajar, alabeo al virar (Q / E) y al
+	-- // desplazarse de lado. Nariz arriba (pitch > 0); lado derecho abajo (roll < 0) = derecha.
+	local ThrustAuthority = Authority * self.TiltScale * LandTilt
 	local SpeedCap = FLIGHT.MAX_SPEED * self.SpeedScale * LandSpeed * Authority
-	local Soft = SpeedCap * 0.08 + 1 -- // Rango en el que el comando se apaga al acercarse al limite (alcanza MAX_SPEED casi entero)
+	local Soft = SpeedCap * 0.08 + 1 -- // Rango en el que el empuje se apaga al acercarse al limite (alcanza MAX_SPEED casi entero)
 	local Vf, Vr = self.Vel:Dot(Flat), self.Vel:Dot(Right)
+	local AccelFree = FLIGHT.HORIZ_ACCEL_MAX * FLIGHT.HOLD_BRAKE_FRACTION
 
-	local function InputTilt(Command: number, Speed: number): number
-		-- // El comando se apaga al acercarse al limite de velocidad en su misma direccion
+	-- // Aceleracion sobre un eje (studs/s^2): empuje de la palanca + freno si pasa el limite + freno asistido con la palanca centrada
+	local function Thrust(Command: number, Speed: number): number
 		local Room = math.clamp((SpeedCap - Speed * math.sign(Command)) / Soft, 0, 1)
-		return -Command * FLIGHT.MAX_TILT * TiltAuthority * Room
-	end
-	local function BrakeTilt(Speed: number): number
-		-- // Sobre el limite (por ejemplo, la ola de adelante lo bajo de golpe) inclina al reves para frenar
+		local Push = Command * FLIGHT.HORIZ_ACCEL_MAX * ThrustAuthority * Room
 		local Over = math.abs(Speed) - SpeedCap
-		if Over <= 0 then
-			return 0
+		local Brake = 0
+		if Over > 0 then
+			Brake = -math.sign(Speed) * math.min(Over * FLIGHT.BRAKE_GAIN, FLIGHT.HORIZ_ACCEL_MAX * FLIGHT.BRAKE_FRACTION) * Authority * LandTilt
 		end
-		return math.sign(Speed) * math.min(Over * FLIGHT.BRAKE_GAIN, FLIGHT.MAX_TILT * FLIGHT.BRAKE_TILT_FRACTION) * Authority * LandTilt
-	end
-
-	-- // v14: con la palanca centrada la computadora de vuelo inclina al reves, suave, y la nave frena sola (como retener posicion).
-	-- // Se desvanece al empujar la palanca (1 - |palanca|), asi no pelea con la orden del piloto.
-	local function HoldTilt(Speed: number, Command: number): number
 		local Free = math.clamp(1 - math.abs(Command) * 3, 0, 1)
-		local Tilt = math.clamp(Speed * FLIGHT.HOLD_ASSIST, -FLIGHT.MAX_TILT * FLIGHT.HOLD_ASSIST_FRACTION, FLIGHT.MAX_TILT * FLIGHT.HOLD_ASSIST_FRACTION)
-		return Tilt * Free * Authority * LandTilt
+		local Hold = -math.clamp(Speed * FLIGHT.HOLD_BRAKE, -AccelFree, AccelFree) * Free * Authority * LandTilt
+		return Push + Brake + Hold
 	end
 
-	local PitchCommand = math.clamp(InputTilt(Throttle, Vf) + BrakeTilt(Vf) + HoldTilt(Vf, Throttle), -FLIGHT.MAX_TILT, FLIGHT.MAX_TILT)
-	local RollCommand = math.clamp(InputTilt(Strafe, Vr) + BrakeTilt(Vr) + HoldTilt(Vr, Strafe), -FLIGHT.MAX_TILT, FLIGHT.MAX_TILT)
+	local AccelForward = Thrust(Throttle, Vf)
+	local AccelRight = Thrust(Strafe, Vr)
+
+	local ClimbRatio = math.clamp(self.VerticalSpeed / FLIGHT.MAX_CLIMB_RATE, -1, 1)
+	local YawRatio = math.clamp(self.YawRate / FLIGHT.TURN_RATE, -1, 1)
+	local SpeedRatio = math.clamp(self.Vel.Magnitude / FLIGHT.MAX_SPEED, 0, 1)
+	local Visual = self.TiltScale
+	local PitchCommand = FLIGHT.PITCH_CLIMB * ClimbRatio * Visual
+	local RollCommand = (FLIGHT.BANK_TURN * YawRatio * (0.4 + 0.6 * SpeedRatio) - Strafe * FLIGHT.STRAFE_ROLL) * Visual
 
 	local Freq, Damping = FLIGHT.TILT_FREQ, FLIGHT.TILT_DAMPING
 	self.PitchRate += (Freq * Freq * (PitchCommand - self.Pitch) - 2 * Damping * Freq * self.PitchRate) * dt
@@ -421,10 +422,8 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 	self.Pitch = math.clamp(self.Pitch + self.PitchRate * dt, -TiltLimit, TiltLimit)
 	self.Roll = math.clamp(self.Roll + self.RollRate * dt, -TiltLimit, TiltLimit)
 
-	local AccelForward = -FLIGHT.HORIZ_ACCEL_MAX * (self.Pitch / FLIGHT.MAX_TILT) * Authority
-	local AccelRight = -FLIGHT.HORIZ_ACCEL_MAX * (self.Roll / FLIGHT.MAX_TILT) * Authority
 	local Drag = FLIGHT.HORIZ_ACCEL_MAX / FLIGHT.MAX_SPEED
-	-- // v14: gira la velocidad hacia donde apunta la nariz (conserva la rapidez, solo cambia la direccion). Se anula con Q / E.
+	-- // v14: gira la velocidad hacia donde apunta la nariz (conserva la rapidez, solo cambia la direccion). Se anula al usar A / D.
 	local Align = Vector3.zero
 	local Lateral = self.Vel:Dot(Right)
 	if FLIGHT.NOSE_ALIGN > 0 and math.abs(Lateral) > 0.01 then

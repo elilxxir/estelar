@@ -406,11 +406,20 @@ local function SetPropulsorEffects(enabled)
 	end
 end
 
+-- // v14: capas que se silencian en vuelo (Settings.FLIGHT.SOUNDS.MUTE_IN_FLIGHT). Los sonidos del vuelo los crea
+-- // StarterPlayerScripts/FlightEffects en cada cliente.
+local MuteInFlight = {}
+for _, Name in ipairs(FLIGHT.SOUNDS.MUTE_IN_FLIGHT) do
+	MuteInFlight[Name] = true
+end
+local WaterGain = 1 -- // 1 = en el agua, 0 = en vuelo (con transicion suave)
+
 local function UpdateSoundLayers(speedRatio)
 	for _, entry in ipairs(SoundInstances) do
 		local s = entry.sound
 		local l = entry.layer
-		s.Volume = l.minVolume + (l.maxVolume - l.minVolume) * speedRatio
+		local Gain = if MuteInFlight[l.name] then WaterGain else 1
+		s.Volume = (l.minVolume + (l.maxVolume - l.minVolume) * speedRatio) * Gain
 		s.PlaybackSpeed = l.pitchMin + (l.pitchMax - l.pitchMin) * speedRatio
 	end
 end
@@ -424,6 +433,9 @@ RunService.PostSimulation:Connect(function(dt)
 	local Moved = Vector3.new(Position.X - LastPosition.X, 0, Position.Z - LastPosition.Z).Magnitude
 	LastPosition = Position
 	MeasuredSpeed += (Moved / dt - MeasuredSpeed) * (1 - math.exp(-dt / 0.3))
+
+	local WaterTarget = if Boat:GetAttribute('FlightMode') == 'Water' then 1 else 0
+	WaterGain += (WaterTarget - WaterGain) * (1 - math.exp(-dt / 0.6))
 
 	local throttle = VehicleSeat.Throttle
 

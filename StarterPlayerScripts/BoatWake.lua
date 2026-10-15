@@ -13,6 +13,7 @@ local CS = game:GetService("CollectionService")
 local Debris = game:GetService("Debris")
 
 local HeightLookup = require(RS:WaitForChild("Gerstner"):WaitForChild("HeightLookup"))
+local FLIGHT = require(RS:WaitForChild("Gerstner"):WaitForChild("Settings")).FLIGHT
 
 -- // Config
 local MIN_SPEED = 6
@@ -356,9 +357,20 @@ local function update(s)
 	s.prevPos, s.prevClock = pos, clock
 	local vel = s.vel
 	local speed = Vector3.new(vel.X, 0, vel.Z).Magnitude
-	-- En vuelo (FlightMode ~= Water, ver Serial/BoatDrive) la nave no toca el agua: sin estela ni salpicaduras
+	-- En vuelo (FlightMode ~= Water, ver Serial/BoatDrive) la nave no toca el agua: sin salpicaduras de impacto.
+	-- v14: la espuma y el spray solo aparecen si vuela cerca del agua (WAKE_FULL_HEIGHT..WAKE_HEIGHT, se desvanecen).
 	local OnWater = (s.seat.Parent:GetAttribute("FlightMode") or "Water") == "Water"
-	local active = speed > MIN_SPEED and OnWater
+	local fade = 1
+	if not OnWater then
+		local h = HeightLookup.Lookup(pos, "PRECISE", false)
+		if h == -1 then
+			fade = 0
+		else
+			local height = pos.Y - h - s.main.Size.Y / 2
+			fade = math.clamp(1 - (height - FLIGHT.WAKE_FULL_HEIGHT) / (FLIGHT.WAKE_HEIGHT - FLIGHT.WAKE_FULL_HEIGHT), 0, 1)
+		end
+	end
+	local active = speed > MIN_SPEED and fade > 0.05
 	s.frame += 1
 
 	-- Impact splash: sudden positive change in vertical velocity (hull hitting water / wave)
@@ -370,7 +382,7 @@ local function update(s)
 	s.prevVy = vel.Y
 
 	-- Particle rates scale with speed
-	local ratio = if active then math.clamp((speed - MIN_SPEED) / (SPEED_FULL - MIN_SPEED), 0, 1) else 0
+	local ratio = if active then math.clamp((speed - MIN_SPEED) / (SPEED_FULL - MIN_SPEED), 0, 1) * fade else 0
 	for _, em in s.emitters do
 		em.e.Rate = em.max * (ratio ^ em.curve)
 	end

@@ -28,7 +28,9 @@ Sys:
 * Add enter driver/passenger seats prompt by the ship door:
   (Include entering, exiting sound).
 * Ship's ability to fly -implemented, needs in-game tuning (all values in Settings > FLIGHT):
-  * Controls: F take off / land (while landing: cancel). In flight: W/S pitch (forward/back acceleration), Q/E roll (sideways acceleration), A/D yaw (heading), Space/Left Shift collective (up/down). Space is sunk while flying so the pilot isn't ejected from the seat.
+  * Controls (v14): F take off / land (while landing: cancel). In flight: W/S thrust forward/back (direct thrust, the ship does not tilt to advance), A/D strafe, Q/E yaw (heading), Space/Left Shift collective (up/down). In water mode A/D are still the steering wheel. Space is always sunk while seated so the pilot isn't ejected from the seat.
+  * Visual pitch/roll only (PITCH_CLIMB, BANK_TURN, STRAFE_ROLL). Inputs go through a virtual stick (STICK_RISE / STICK_RETURN) and HOLD_BRAKE brakes by itself with the stick centered.
+  * Wake: only while flying near the water (WAKE_FULL_HEIGHT..WAKE_HEIGHT, fades out). Vertical gas thrusters, flight sounds and camera shake: StarterPlayerScripts/FlightEffects (Settings.FLIGHT GAS / SOUNDS / SHAKE). SOUNDS IDs are empty: fill them in.
   * States (BoatDrive.Mode, granted by the server through the Boat's FlightMode attribute): Water > Takeoff > Flight > Landing > Water. Takeoff climbs by itself past the gate; Landing descends by itself and hands over to the water simulation.
   * Hover/flight reference is the sampled Gerstner surface (HeightLookup, giant wave included); the rendered ocean planes stay non-collidable.
   * Hard floor: wave height under the 4 buoyancy points, with hull tilt (MIN_CLEARANCE). Descent commands can't cross it (the altitude target is clamped to it), and position is clamped to it as a last resort.

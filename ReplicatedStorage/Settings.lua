@@ -187,9 +187,11 @@ return {
 			Toggle = Enum.KeyCode.F, -- // Despegar / aterrizar (en aterrizaje: cancelar y volver a subir)
 			Up = Enum.KeyCode.Space, -- // Colectivo: subir
 			Down = Enum.KeyCode.LeftShift, -- // Colectivo: bajar
-			StrafeLeft = Enum.KeyCode.Q, -- // Alabeo (roll): aceleracion lateral
-			StrafeRight = Enum.KeyCode.E,
-		}, -- // W / S = cabeceo (pitch, aceleracion adelante / atras), A / D = guinada (yaw, rumbo)
+			StrafeLeft = Enum.KeyCode.A, -- // v14 (antes Q / E): desplazamiento lateral
+			StrafeRight = Enum.KeyCode.D,
+			YawLeft = Enum.KeyCode.Q, -- // v14 (antes A / D): guinada (rumbo)
+			YawRight = Enum.KeyCode.E,
+		}, -- // W / S = empuje adelante / atras. En modo agua A / D siguen siendo el volante del VehicleSeat
 
 		-- // Alturas
 		MIN_CLEARANCE = 8, -- // Altura minima del punto de flotacion mas bajo sobre su ola (con la inclinacion del casco)
@@ -217,23 +219,26 @@ return {
 
 		-- // Horizontal (cabeceo / alabeo -> aceleracion)
 		MAX_SPEED = 140, -- // studs/s
-		HORIZ_ACCEL_MAX = 32, -- // v14 (antes 45): nave pesada. studs/s^2 con la inclinacion maxima. La resistencia del aire es HORIZ_ACCEL_MAX / MAX_SPEED
-		MAX_TILT = 0.4, -- // rad
-		TILT_FREQ = 2.4, -- // v14 (antes 4): rad/s. Mas bajo = la nave tarda mas en inclinarse (inercia de rotacion)
+		HORIZ_ACCEL_MAX = 50, -- // v14 (antes 45): empuje directo, mas dinamico. studs/s^2 con la inclinacion maxima. La resistencia del aire es HORIZ_ACCEL_MAX / MAX_SPEED
+		MAX_TILT = 0.4, -- // rad. v14: solo tope visual (la inclinacion ya no produce aceleracion)
+		TILT_FREQ = 5, -- // v14: rad/s. Respuesta del cabeceo / alabeo visual
 		TILT_DAMPING = 0.85,
-		BRAKE_GAIN = 0.03, -- // rad de inclinacion de frenado por cada stud/s sobre el limite de velocidad
-		BRAKE_TILT_FRACTION = 0.8, -- // Fraccion de MAX_TILT disponible para frenar
-		TURN_RATE = math.rad(38), -- // v14 (antes 55): rad/s
-		YAW_SMOOTH = 0.8, -- // v14 (antes 0.35): s. La guinada arranca y se detiene con inercia
+		BRAKE_GAIN = 1.5, -- // v14: studs/s^2 de frenado por cada stud/s sobre el limite de velocidad
+		BRAKE_FRACTION = 0.8, -- // v14: fraccion de HORIZ_ACCEL_MAX disponible para frenar
+		TURN_RATE = math.rad(60), -- // v14: rad/s
+		YAW_SMOOTH = 0.3, -- // v14: s. La guinada arranca y se detiene con un poco de inercia
 
 		-- // v14: manejo tipo Ranger (Interstellar). Las teclas son digitales; se convierten en una palanca virtual que se mueve
 		-- // con velocidad limitada (como una palanca / yugo) y la nave responde con peso: tarda en inclinarse, en acelerar y en frenar.
-		STICK_RISE = 1.6, -- // v14: unidades de palanca / s al empujar (1 = tope). 1.6 = 0.6 s hasta el tope
-		STICK_RETURN = 2.4, -- // v14: ...al soltar (vuelve a 0 un poco mas rapido que al empujar)
-		COLLECTIVE_RISE = 1.2, -- // v14: palanca del colectivo. Mas lenta: los motores verticales tardan en subir de potencia
-		COLLECTIVE_RETURN = 2, -- // v14
-		HOLD_ASSIST = 0.006, -- // v14: rad de inclinacion de frenado por cada stud/s con la palanca centrada (la computadora de vuelo frena sola, suave)
-		HOLD_ASSIST_FRACTION = 0.5, -- // v14: fraccion de MAX_TILT que puede usar ese freno
+		STICK_RISE = 3.5, -- // v14: unidades de palanca / s al empujar (1 = tope). 3.5 = 0.3 s hasta el tope
+		STICK_RETURN = 4.5, -- // v14: ...al soltar (vuelve a 0 un poco mas rapido que al empujar)
+		COLLECTIVE_RISE = 2.5, -- // v14: palanca del colectivo. Mas lenta: los motores verticales tardan en subir de potencia
+		COLLECTIVE_RETURN = 3, -- // v14
+		HOLD_BRAKE = 0.5, -- // v14: 1/s. Freno asistido con la palanca centrada (la computadora de vuelo frena sola, suave)
+		HOLD_BRAKE_FRACTION = 0.5, -- // v14: fraccion de HORIZ_ACCEL_MAX que puede usar ese freno
+		PITCH_CLIMB = 0.10, -- // v14: rad de cabeceo visual (nariz arriba al subir, abajo al bajar) a MAX_CLIMB_RATE
+		BANK_TURN = 0.30, -- // v14: rad de alabeo visual al virar a TURN_RATE (crece con la velocidad)
+		STRAFE_ROLL = 0.12, -- // v14: rad de alabeo visual al desplazarse de lado
 		NOSE_ALIGN = 0.35, -- // v14: 1/s. Gira la velocidad hacia donde apunta la nariz (vuelo hacia adelante). 0 = deriva libre. Se anula al usar Q / E
 		ACCEL_CAP = 1.4, -- // v14: tope de la aceleracion horizontal total, en veces HORIZ_ACCEL_MAX (debe ser < SERVER_TOLERANCE)
 
@@ -266,6 +271,41 @@ return {
 		SWEPT_LOCKOUT_SECONDS = 6, -- // Sin despegar tras ser arrastrado por la ola
 		REQUEST_COOLDOWN = 0.5, -- // s entre peticiones del cliente
 		ALLOW_IN_WHIRLPOOL = false,
+
+		-- // v14: estela y salpicaduras en vuelo. Solo hay estela si la nave vuela cerca del agua.
+		WAKE_FULL_HEIGHT = 6, -- // studs sobre el agua (casco) hasta los que la estela es completa
+		WAKE_HEIGHT = 16, -- // studs sobre el agua a partir de los que ya no hay estela (entre ambas se desvanece)
+
+		-- // v14: propulsores verticales pequenos (eyeccion de gas). Suben: gas hacia abajo; bajan: gas hacia arriba.
+		GAS = {
+			CLIMB_REF = 22, -- // studs/s de velocidad vertical que cuentan como empuje completo
+			ACCEL_REF = 60, -- // studs/s^2 de aceleracion vertical que cuentan como empuje completo (pulso al arrancar / frenar)
+			DEADZONE = 0.08,
+			RATE = 90, -- // particulas / s por boquilla con empuje completo
+		},
+
+		-- // v14: sonidos del vuelo. REEMPLAZA los IDs (vacio = ese sonido no se crea).
+		SOUNDS = {
+			ThrusterLoop = '', -- // Propulsores principales en vuelo (loop). Volumen y tono suben con empuje y velocidad
+			GasLoop = '', -- // Propulsores verticales pequenos (loop de eyeccion de gas)
+			GasBurst = '', -- // Soplido corto cuando los propulsores verticales arrancan
+			THRUSTER_VOLUME = 4,
+			GAS_VOLUME = 3,
+			BURST_VOLUME = 3,
+			ROLLOFF = 600,
+			MUTE_IN_FLIGHT = { 'Agua' }, -- // Capas de Handler > SOUND_LAYERS que se silencian en vuelo (por nombre)
+		},
+
+		-- // v14: vibracion de camara del piloto (solo en vuelo)
+		SHAKE = {
+			ENABLED = true,
+			BASE = 0.35, -- // vibracion constante con los motores encendidos (0..1 de la intensidad maxima)
+			SPEED = 0.45, -- // se suma a velocidad completa
+			GAS = 0.5, -- // se suma con propulsores verticales a tope
+			ROT = 0.0045, -- // rad de giro maximo
+			POS = 0.09, -- // studs de desplazamiento maximo (Humanoid.CameraOffset)
+			FREQ = 26, -- // Hz aproximados del temblor
+		},
 	},
 
 	-- // DEBUG
