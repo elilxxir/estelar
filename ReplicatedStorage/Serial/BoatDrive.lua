@@ -431,7 +431,7 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 	-- // Aceleracion: un poco por la inclinacion real del casco + propulsores principales (Espacio adelante, Shift atras)
 	local TiltForward = -FLIGHT.TILT_ACCEL * (self.Pitch / FLIGHT.MAX_TILT) * Authority
 	local TiltRight = -FLIGHT.TILT_ACCEL * (self.Roll / FLIGHT.MAX_TILT) * Authority
-	local Push = Boost * FLIGHT.HORIZ_ACCEL_MAX * ThrustAuthority * Room(Boost, Vf)
+	local Push = Boost * FLIGHT.HORIZ_ACCEL_MAX * TiltAuthority * Room(Boost, Vf) -- // v15: era ThrustAuthority (sin definir)
 	local AccelForward = TiltForward + Push + Brakes(Vf, math.abs(Boost) + math.abs(Throttle))
 	local AccelRight = TiltRight + Brakes(Vr, math.abs(Roll))
 
