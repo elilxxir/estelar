@@ -21,12 +21,12 @@ local ZONES = {}
 
 local function IslandAdded(Island: Model)
 	Island = Island:: Model	
-	
+
 	if Island:WaitForChild('Center', 1) == nil then
 		return
 	end
 	local Center: BasePart = Island:WaitForChild('Center'):: BasePart
-	
+
 	local Radius = 0
 	local RadiusInstance: IntValue? = Island:FindFirstChild('Radius'):: IntValue?
 	if RadiusInstance then
@@ -50,14 +50,14 @@ function ZoneManager:InsertZone(Position: Vector3, ZoneInfo: Helper.ZoneParamete
 	if ExistingZone[1] ~= nil then
 		return nil
 	end
-	
+
 	local NODE = ZONE_TREE:CreateNode(Position, ZoneInfo)
 	if ZoneInfo.Link then
 		ZoneInfo.Link.Destroying:Once(function()
 			ZONE_TREE:RemoveNode(NODE)
 		end)
 	end
-	
+
 	if IS_SERVER == true then
 		script.EditZone:FireAllClients('Insert', Position, ZoneInfo)
 	elseif ZoneInfo.Link then
@@ -69,12 +69,12 @@ function ZoneManager:InsertZone(Position: Vector3, ZoneInfo: Helper.ZoneParamete
 			elseif Attribute == 'Despawn' then
 				NODE.Object.FullDecayAt = workspace:GetServerTimeNow() + ZoneInfo.DissolveTime
 				NODE.Object.Despawn = true
-				
+
 				script.ZoneUpdated:Fire()
 			end
 		end)
 	end
-	
+
 	return NODE
 end
 
@@ -88,7 +88,7 @@ end
 	Should be called sparingly, as every node in the 2 octrees will be iterated over
 ]]
 function ZoneManager:GetZoneParameters(Position: Vector3): Helper.ZoneParameters?
-	
+
 	local ZoneNodes = ZONE_TREE:GetAllNodes()
 	for i, Node in ZoneNodes do
 		local Data = Node.Object
@@ -97,7 +97,7 @@ function ZoneManager:GetZoneParameters(Position: Vector3): Helper.ZoneParameters
 			return Data
 		end
 	end
-	
+
 	local IslandNodes = ISLAND_TREE:GetAllNodes()
 	for i, Node in IslandNodes do
 		local Data = Node.Object
