@@ -28,8 +28,8 @@ Sys:
 * Add enter driver/passenger seats prompt by the ship door:
   (Include entering, exiting sound).
 * Ship's ability to fly -implemented, needs in-game tuning (all values in Settings > FLIGHT):
-  * Controls (v14): F take off / land (while landing: cancel). In flight: W/S thrust forward/back (direct thrust, the ship does not tilt to advance), A/D strafe, Q/E yaw (heading), Space/Left Shift collective (up/down). In water mode A/D are still the steering wheel. Space is always sunk while seated so the pilot isn't ejected from the seat.
-  * Visual pitch/roll only (PITCH_CLIMB, BANK_TURN, STRAFE_ROLL). Inputs go through a virtual stick (STICK_RISE / STICK_RETURN) and HOLD_BRAKE brakes by itself with the stick centered.
+  * Controls (v14): F take off / land (while landing: cancel). In flight: W/S pitch (tilts and accelerates a little, TILT_ACCEL), A/D roll (tilts, accelerates a little and turns the ship: no yaw key), Space/Left Shift main thrusters (forward/back, HORIZ_ACCEL_MAX), Q/E up/down (vertical gas thrusters). In water mode W/A/S/D are still the steering wheel. Space is always sunk while seated so the pilot isn't ejected from the seat.
+  * Pitch also gets a visual nose-up/down when climbing (PITCH_CLIMB). Inputs go through a virtual stick (STICK_RISE / STICK_RETURN) and HOLD_BRAKE brakes by itself with the stick centered.
   * Wake: only while flying near the water (WAKE_FULL_HEIGHT..WAKE_HEIGHT, fades out). Vertical gas thrusters, flight sounds and camera shake: StarterPlayerScripts/FlightEffects (Settings.FLIGHT GAS / SOUNDS / SHAKE). SOUNDS IDs are empty: fill them in.
   * States (BoatDrive.Mode, granted by the server through the Boat's FlightMode attribute): Water > Takeoff > Flight > Landing > Water. Takeoff climbs by itself past the gate; Landing descends by itself and hands over to the water simulation.
   * Hover/flight reference is the sampled Gerstner surface (HeightLookup, giant wave included); the rendered ocean planes stay non-collidable.

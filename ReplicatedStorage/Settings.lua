@@ -185,13 +185,13 @@ return {
 		ENABLED = true,
 		KEYS = {
 			Toggle = Enum.KeyCode.F, -- // Despegar / aterrizar (en aterrizaje: cancelar y volver a subir)
-			Up = Enum.KeyCode.Space, -- // Colectivo: subir
-			Down = Enum.KeyCode.LeftShift, -- // Colectivo: bajar
-			StrafeLeft = Enum.KeyCode.A, -- // v14 (antes Q / E): desplazamiento lateral
-			StrafeRight = Enum.KeyCode.D,
-			YawLeft = Enum.KeyCode.Q, -- // v14 (antes A / D): guinada (rumbo)
-			YawRight = Enum.KeyCode.E,
-		}, -- // W / S = empuje adelante / atras. En modo agua A / D siguen siendo el volante del VehicleSeat
+			Up = Enum.KeyCode.Q, -- // v14: subir (propulsores verticales, gas hacia abajo)
+			Down = Enum.KeyCode.E, -- // v14: bajar (gas hacia arriba)
+			BoostForward = Enum.KeyCode.Space, -- // v14: propulsores principales, empuje adelante
+			BoostBack = Enum.KeyCode.LeftShift, -- // v14: propulsores principales, empuje atras / freno
+			RollLeft = Enum.KeyCode.A, -- // v14: alabeo (inclina y vira)
+			RollRight = Enum.KeyCode.D,
+		}, -- // W / S = cabeceo (inclina y acelera un poco). En modo agua W / A / S / D siguen siendo el volante del VehicleSeat
 
 		-- // Alturas
 		MIN_CLEARANCE = 8, -- // Altura minima del punto de flotacion mas bajo sobre su ola (con la inclinacion del casco)
@@ -219,8 +219,8 @@ return {
 
 		-- // Horizontal (cabeceo / alabeo -> aceleracion)
 		MAX_SPEED = 140, -- // studs/s
-		HORIZ_ACCEL_MAX = 50, -- // v14 (antes 45): empuje directo, mas dinamico. studs/s^2 con la inclinacion maxima. La resistencia del aire es HORIZ_ACCEL_MAX / MAX_SPEED
-		MAX_TILT = 0.4, -- // rad. v14: solo tope visual (la inclinacion ya no produce aceleracion)
+		HORIZ_ACCEL_MAX = 50, -- // v14 (antes 45): empuje de los propulsores principales (Espacio / Shift). studs/s^2 con la inclinacion maxima. La resistencia del aire es HORIZ_ACCEL_MAX / MAX_SPEED
+		MAX_TILT = 0.4, -- // rad. Cabeceo / alabeo maximos (W / S, A / D)
 		TILT_FREQ = 5, -- // v14: rad/s. Respuesta del cabeceo / alabeo visual
 		TILT_DAMPING = 0.85,
 		BRAKE_GAIN = 1.5, -- // v14: studs/s^2 de frenado por cada stud/s sobre el limite de velocidad
@@ -237,8 +237,8 @@ return {
 		HOLD_BRAKE = 0.5, -- // v14: 1/s. Freno asistido con la palanca centrada (la computadora de vuelo frena sola, suave)
 		HOLD_BRAKE_FRACTION = 0.5, -- // v14: fraccion de HORIZ_ACCEL_MAX que puede usar ese freno
 		PITCH_CLIMB = 0.10, -- // v14: rad de cabeceo visual (nariz arriba al subir, abajo al bajar) a MAX_CLIMB_RATE
-		BANK_TURN = 0.30, -- // v14: rad de alabeo visual al virar a TURN_RATE (crece con la velocidad)
-		STRAFE_ROLL = 0.12, -- // v14: rad de alabeo visual al desplazarse de lado
+		TILT_ACCEL = 16, -- // v14: studs/s^2 que acelera la inclinacion maxima (W / S, A / D). "Un poco": el empuje fuerte es Espacio / Shift
+		ROLL_TURN = 0.8, -- // v14: fraccion de TURN_RATE con el alabeo maximo (el alabeo hace virar; en vuelo no hay tecla de guinada)
 		NOSE_ALIGN = 0.35, -- // v14: 1/s. Gira la velocidad hacia donde apunta la nariz (vuelo hacia adelante). 0 = deriva libre. Se anula al usar Q / E
 		ACCEL_CAP = 1.4, -- // v14: tope de la aceleracion horizontal total, en veces HORIZ_ACCEL_MAX (debe ser < SERVER_TOLERANCE)
 

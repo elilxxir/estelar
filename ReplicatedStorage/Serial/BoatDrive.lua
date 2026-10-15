@@ -155,9 +155,9 @@ function BoatDrive.new(Boat: Model, Seat: VehicleSeat)
 		Swept = false, -- // true cuando la ola alcanzo el techo y la nave volvio a Water. El cliente lo borra
 		Collective = 0,
 		-- // v14: palanca virtual (-1..1). Las teclas son digitales; la nave responde a la palanca, no a la tecla
-		StickThrottle = 0,
-		StickStrafe = 0,
-		StickSteer = 0,
+		StickThrottle = 0, -- // W / S (cabeceo)
+		StickRoll = 0, -- // A / D (alabeo)
+		StickBoost = 0, -- // Espacio / Shift (propulsores principales)
 		StickCollective = 0,
 
 		Position = Seat.Position,
@@ -292,7 +292,7 @@ function BoatDrive.SetMode(self, Mode: string)
 		self.SpeedScale, self.TiltScale, self.Overload = 1, 1, 0
 		self.YawRate = 0
 		self.Swept = false
-		self.StickThrottle, self.StickStrafe, self.StickSteer, self.StickCollective = 0, 0, 0, 0 -- // v14
+		self.StickThrottle, self.StickRoll, self.StickBoost, self.StickCollective = 0, 0, 0, 0 -- // v14
 	elseif Mode == 'Water' then
 		self.Speed = math.clamp(self.Vel:Dot(self.Flat), -MAX_REVERSE_SPEED, MAX_SPEED)
 		self.Vel = Vector3.zero
@@ -305,17 +305,24 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 	local Landing = Mode == 'Landing'
 	local Takeoff = Mode == 'Takeoff'
 	-- // v14: las ordenes (teclas) pasan por la palanca virtual antes de usarse
+	-- // v14: W / S = cabeceo (Throttle del asiento), A / D = alabeo, Espacio / Shift = propulsores principales (Boost),
+	-- // Q / E = subir / bajar (Collective). En vuelo no hay tecla de guinada: el alabeo hace virar la nave.
+	local RollInput = if Input then Input.Roll or 0 else 0
+	local BoostInput = if Input then Input.Boost or 0 else 0
 	self.StickThrottle = Stick(self.StickThrottle, Throttle, dt, FLIGHT.STICK_RISE, FLIGHT.STICK_RETURN)
-	self.StickSteer = Stick(self.StickSteer, Steer, dt, FLIGHT.STICK_RISE, FLIGHT.STICK_RETURN)
-	self.StickStrafe = Stick(self.StickStrafe, if Input then Input.Strafe or 0 else 0, dt, FLIGHT.STICK_RISE, FLIGHT.STICK_RETURN)
+	self.StickRoll = Stick(self.StickRoll, RollInput, dt, FLIGHT.STICK_RISE, FLIGHT.STICK_RETURN)
+	self.StickBoost = Stick(self.StickBoost, BoostInput, dt, FLIGHT.STICK_RISE, FLIGHT.STICK_RETURN)
 	self.StickCollective = Stick(self.StickCollective, if Input then Input.Collective or 0 else 0, dt, FLIGHT.COLLECTIVE_RISE, FLIGHT.COLLECTIVE_RETURN)
-	Throttle, Steer = self.StickThrottle, self.StickSteer
-	local Strafe = self.StickStrafe
+	Throttle = self.StickThrottle
+	local Roll = self.StickRoll
+	local Boost = self.StickBoost
 	local Collective = self.StickCollective
 	self.Collective = Collective
 
-	-- // 1. Guinada (rumbo)
-	local YawRateTarget = -Steer * FLIGHT.TURN_RATE
+	-- // 1. Guinada (rumbo). v14: sale del alabeo (virar inclinada, como un avion): lado derecho abajo (roll < 0) = vira a la derecha.
+	-- // Sin autoridad (cerca del agua) no vira.
+	local YawAuthority = Smoothstep01((self.Height - FLIGHT.GATE_HEIGHT) / FLIGHT.GATE_BLEND)
+	local YawRateTarget = math.clamp(self.Roll / FLIGHT.MAX_TILT, -1, 1) * FLIGHT.TURN_RATE * FLIGHT.ROLL_TURN * YawAuthority
 	self.YawRate += (YawRateTarget - self.YawRate) * (1 - math.exp(-dt / FLIGHT.YAW_SMOOTH))
 	self.Yaw += self.YawRate * dt
 	local YawCF = CFrame.fromEulerAnglesXYZ(0, self.Yaw, 0)
@@ -338,7 +345,7 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 	self.LookTimer += dt
 	if self.LookTimer >= FLIGHT.LOOK_INTERVAL then
 		self.LookTimer = 0
-		local Direction = Flat * Throttle + Right * Strafe
+		local Direction = Flat * math.clamp(-self.Pitch / FLIGHT.MAX_TILT * 0.5 + Boost, -1, 1) + Right * math.clamp(-self.Roll / FLIGHT.MAX_TILT * 0.5, -1, 1)
 		if Direction.Magnitude > 1 then
 			Direction = Direction.Unit
 		end
@@ -382,38 +389,37 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 	self.PrevFloorTarget = FloorCurrent
 	self.FloorTarget = FloorCurrent + FloorStep
 
-	-- // 5. v14: empuje directo, no helicoptero. W / S (adelante / atras) y A / D (lateral) aceleran la nave directamente, sin
-	-- // inclinarla. Cabeceo y alabeo son solo visuales: nariz arriba / abajo al subir / bajar, alabeo al virar (Q / E) y al
-	-- // desplazarse de lado. Nariz arriba (pitch > 0); lado derecho abajo (roll < 0) = derecha.
-	local ThrustAuthority = Authority * self.TiltScale * LandTilt
+	-- // 5. v14: W / S inclinan la nave (cabeceo) y A / D la alabean; la inclinacion acelera un poco (TILT_ACCEL) y vira (A / D).
+	-- // Los propulsores principales (Espacio / Shift) dan el empuje fuerte hacia adelante / atras (HORIZ_ACCEL_MAX).
+	-- // Nariz abajo (pitch < 0) = adelante; nariz arriba (pitch > 0) tambien al subir; lado derecho abajo (roll < 0) = derecha.
+	local TiltAuthority = Authority * self.TiltScale * LandTilt
 	local SpeedCap = FLIGHT.MAX_SPEED * self.SpeedScale * LandSpeed * Authority
 	local Soft = SpeedCap * 0.08 + 1 -- // Rango en el que el empuje se apaga al acercarse al limite (alcanza MAX_SPEED casi entero)
 	local Vf, Vr = self.Vel:Dot(Flat), self.Vel:Dot(Right)
 	local AccelFree = FLIGHT.HORIZ_ACCEL_MAX * FLIGHT.HOLD_BRAKE_FRACTION
 
-	-- // Aceleracion sobre un eje (studs/s^2): empuje de la palanca + freno si pasa el limite + freno asistido con la palanca centrada
-	local function Thrust(Command: number, Speed: number): number
-		local Room = math.clamp((SpeedCap - Speed * math.sign(Command)) / Soft, 0, 1)
-		local Push = Command * FLIGHT.HORIZ_ACCEL_MAX * ThrustAuthority * Room
+	-- // Empuje de la orden (sobre el eje) que se apaga al acercarse al limite de velocidad en su misma direccion
+	local function Room(Direction: number, Speed: number): number
+		return math.clamp((SpeedCap - Speed * math.sign(Direction)) / Soft, 0, 1)
+	end
+	-- // Frenos: sobre el limite de velocidad (la ola de adelante lo bajo de golpe) y asistido con las palancas centradas
+	local function Brakes(Speed: number, Command: number): number
 		local Over = math.abs(Speed) - SpeedCap
 		local Brake = 0
 		if Over > 0 then
 			Brake = -math.sign(Speed) * math.min(Over * FLIGHT.BRAKE_GAIN, FLIGHT.HORIZ_ACCEL_MAX * FLIGHT.BRAKE_FRACTION) * Authority * LandTilt
 		end
-		local Free = math.clamp(1 - math.abs(Command) * 3, 0, 1)
+		local Free = math.clamp(1 - Command * 3, 0, 1)
 		local Hold = -math.clamp(Speed * FLIGHT.HOLD_BRAKE, -AccelFree, AccelFree) * Free * Authority * LandTilt
-		return Push + Brake + Hold
+		return Brake + Hold
 	end
 
-	local AccelForward = Thrust(Throttle, Vf)
-	local AccelRight = Thrust(Strafe, Vr)
-
+	-- // Inclinacion pedida: W / S -> cabeceo, A / D -> alabeo. El cabeceo suma el visual al subir / bajar.
 	local ClimbRatio = math.clamp(self.VerticalSpeed / FLIGHT.MAX_CLIMB_RATE, -1, 1)
-	local YawRatio = math.clamp(self.YawRate / FLIGHT.TURN_RATE, -1, 1)
-	local SpeedRatio = math.clamp(self.Vel.Magnitude / FLIGHT.MAX_SPEED, 0, 1)
-	local Visual = self.TiltScale
-	local PitchCommand = FLIGHT.PITCH_CLIMB * ClimbRatio * Visual
-	local RollCommand = (FLIGHT.BANK_TURN * YawRatio * (0.4 + 0.6 * SpeedRatio) - Strafe * FLIGHT.STRAFE_ROLL) * Visual
+	local PitchCommand = -Throttle * FLIGHT.MAX_TILT * TiltAuthority * Room(Throttle, Vf) + FLIGHT.PITCH_CLIMB * ClimbRatio * self.TiltScale
+	local RollCommand = -Roll * FLIGHT.MAX_TILT * TiltAuthority * Room(Roll, Vr)
+	PitchCommand = math.clamp(PitchCommand, -FLIGHT.MAX_TILT, FLIGHT.MAX_TILT)
+	RollCommand = math.clamp(RollCommand, -FLIGHT.MAX_TILT, FLIGHT.MAX_TILT)
 
 	local Freq, Damping = FLIGHT.TILT_FREQ, FLIGHT.TILT_DAMPING
 	self.PitchRate += (Freq * Freq * (PitchCommand - self.Pitch) - 2 * Damping * Freq * self.PitchRate) * dt
@@ -422,12 +428,19 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 	self.Pitch = math.clamp(self.Pitch + self.PitchRate * dt, -TiltLimit, TiltLimit)
 	self.Roll = math.clamp(self.Roll + self.RollRate * dt, -TiltLimit, TiltLimit)
 
+	-- // Aceleracion: un poco por la inclinacion real del casco + propulsores principales (Espacio adelante, Shift atras)
+	local TiltForward = -FLIGHT.TILT_ACCEL * (self.Pitch / FLIGHT.MAX_TILT) * Authority
+	local TiltRight = -FLIGHT.TILT_ACCEL * (self.Roll / FLIGHT.MAX_TILT) * Authority
+	local Push = Boost * FLIGHT.HORIZ_ACCEL_MAX * ThrustAuthority * Room(Boost, Vf)
+	local AccelForward = TiltForward + Push + Brakes(Vf, math.abs(Boost) + math.abs(Throttle))
+	local AccelRight = TiltRight + Brakes(Vr, math.abs(Roll))
+
 	local Drag = FLIGHT.HORIZ_ACCEL_MAX / FLIGHT.MAX_SPEED
-	-- // v14: gira la velocidad hacia donde apunta la nariz (conserva la rapidez, solo cambia la direccion). Se anula al usar A / D.
+	-- // v14: gira la velocidad hacia donde apunta la nariz (conserva la rapidez, solo cambia la direccion). Se anula al alabear (A / D).
 	local Align = Vector3.zero
 	local Lateral = self.Vel:Dot(Right)
 	if FLIGHT.NOSE_ALIGN > 0 and math.abs(Lateral) > 0.01 then
-		local Weight = math.clamp(1 - math.abs(Strafe) * 3, 0, 1) * Authority
+		local Weight = math.clamp(1 - math.abs(Roll) * 3, 0, 1) * Authority
 		Align = -Right * Lateral * FLIGHT.NOSE_ALIGN * Weight + Flat * math.abs(Lateral) * FLIGHT.NOSE_ALIGN * Weight * math.sign(Vf + 0.001)
 	end
 	-- // v14: tope a la aceleracion horizontal total (empuje maximo). Evita que freno + resistencia + alineacion superen los
@@ -599,8 +612,8 @@ end
 
 -- // Avanza la nave dt segundos. Throttle y Steer son los del VehicleSeat (-1, 0 o 1).
 -- // Idle = true para la nave vacia: no se desliza por las pendientes.
--- // Input (opcional, solo vuelo): { Strafe = -1..1 (alabeo), Collective = -1..1 (subir / bajar) }.
-function BoatDrive.Step(self, dt: number, Throttle: number, Steer: number, Idle: boolean?, Input: { Strafe: number?, Collective: number? }?)
+-- // Input (opcional, solo vuelo): { Roll = -1..1 (A / D), Boost = -1..1 (Espacio / Shift), Collective = -1..1 (Q / E subir / bajar) }.
+function BoatDrive.Step(self, dt: number, Throttle: number, Steer: number, Idle: boolean?, Input: { Roll: number?, Boost: number?, Collective: number? }?)
 	dt = math.min(dt, 0.05)
 	if self.Mode ~= 'Water' then
 		StepFlight(self, dt, Throttle, Steer, Input)

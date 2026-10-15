@@ -1,8 +1,9 @@
 -- LocalScript dentro de StarterPlayer >> StarterPlayerScripts
 -- Mueve la nave desde el cliente del piloto mientras esta sentado (sin fisica: ver Serial/BoatDrive).
 --
--- Vuelo (ver Settings.FLIGHT.KEYS): F despega / aterriza. En vuelo W / S = empuje adelante / atras, A / D = desplazamiento
--- lateral, Q / E = guinada (rumbo), Espacio / Shift izquierdo = colectivo (subir / bajar). v14: Espacio nunca saca al piloto del asiento.
+-- Vuelo (ver Settings.FLIGHT.KEYS): F despega / aterriza. En vuelo W / S = cabeceo (inclina y acelera un poco), A / D = alabeo
+-- (inclina y vira), Espacio / Shift izquierdo = propulsores principales (adelante / atras), Q / E = subir / bajar
+-- (propulsores verticales). v14: Espacio nunca saca al piloto del asiento.
 -- El servidor concede los modos (atributo FlightMode del modelo) y valida el vuelo: este script solo los copia.
 
 --!nonstrict
@@ -58,7 +59,7 @@ local function OnAction(_, State: Enum.UserInputState, Input: InputObject)
 		Held[Key] = nil
 	end
 	-- // v14: Espacio nunca debe hacer saltar al piloto fuera del asiento (ni en agua ni en vuelo)
-	if Key == Keys.Up then
+	if Key == Keys.BoostForward then
 		return Enum.ContextActionResult.Sink
 	end
 	return Enum.ContextActionResult.Pass
@@ -72,10 +73,10 @@ local function BindInput()
 		Enum.ContextActionPriority.High.Value,
 		Keys.Up,
 		Keys.Down,
-		Keys.StrafeLeft,
-		Keys.StrafeRight,
-		Keys.YawLeft,
-		Keys.YawRight,
+		Keys.BoostForward,
+		Keys.BoostBack,
+		Keys.RollLeft,
+		Keys.RollRight,
 		Keys.Toggle
 	)
 end
@@ -98,15 +99,12 @@ local function Step(dt: number)
 	end
 
 	local Input = {
-		Strafe = (if Held[Keys.StrafeRight] then 1 else 0) - (if Held[Keys.StrafeLeft] then 1 else 0),
+		Roll = (if Held[Keys.RollRight] then 1 else 0) - (if Held[Keys.RollLeft] then 1 else 0),
+		Boost = (if Held[Keys.BoostForward] then 1 else 0) - (if Held[Keys.BoostBack] then 1 else 0),
 		Collective = (if Held[Keys.Up] then 1 else 0) - (if Held[Keys.Down] then 1 else 0),
 	}
-	-- // v14: en vuelo A / D desplazan de lado y la guinada va en Q / E; en agua A / D siguen siendo el volante
-	local Steer = Seat.Steer
-	if Drive.Mode ~= 'Water' then
-		Steer = (if Held[Keys.YawRight] then 1 else 0) - (if Held[Keys.YawLeft] then 1 else 0)
-	end
-	BoatDrive.Step(Drive, dt, Seat.Throttle, Steer, false, Input)
+	-- // En agua A / D son el volante (Seat.Steer); en vuelo BoatDrive ignora Steer y usa el alabeo (Input.Roll)
+	BoatDrive.Step(Drive, dt, Seat.Throttle, Seat.Steer, false, Input)
 	BoatDrive.Apply(Drive)
 end
 
