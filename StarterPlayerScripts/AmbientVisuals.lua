@@ -21,26 +21,26 @@ end
 
 -- // Valores base (mar tranquilo, cielo cubierto)
 local BASE = {
-	Density = 0.42,
-	Haze = 2,
-	Brightness = 1.2,
-	CCBrightness = 0,
+	Density = 0.3,
+	Haze = 2.06,
+	Brightness = 1,
+	CCBrightness = -0.1,
 }
 -- // Valores con la ola cerca
 local DANGER = {
-	Density = 0.7,
-	Haze = 5,
-	Brightness = 0.35,
+	Density = 0.6,
+	Haze = 3,
+	Brightness = 0.6,
 	CCBrightness = -0.08,
 }
 
 Lighting.ClockTime = 14
 Lighting.GlobalShadows = true
-Lighting.Ambient = Color3.fromRGB(70, 78, 86)
-Lighting.OutdoorAmbient = Color3.fromRGB(95, 105, 115)
+Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+Lighting.OutdoorAmbient = Color3.fromRGB(0, 0, 0)
 Lighting.ColorShift_Top = Color3.fromRGB(0, 0, 0)
-Lighting.EnvironmentDiffuseScale = 0.6
-Lighting.EnvironmentSpecularScale = 0.4
+Lighting.EnvironmentDiffuseScale = 1
+Lighting.EnvironmentSpecularScale = 1
 
 -- // Si ya existe un Atmosphere en Lighting, su Density y Haze son la config inicial
 local ExistingAtmosphere = Lighting:FindFirstChildOfClass('Atmosphere')
@@ -50,9 +50,9 @@ if ExistingAtmosphere then
 end
 
 local Atmosphere = GetOrCreate('Atmosphere', Lighting)
-Atmosphere.Color = Color3.fromRGB(198, 180, 154) -- // v02 (antes 150,160,170): cielo beige calido
-Atmosphere.Decay = Color3.fromRGB(150, 128, 100) -- // v02 (antes 110,120,130)
-Atmosphere.Offset = 0.25
+Atmosphere.Color = Color3.fromRGB(255, 255, 255) -- // v02 (antes 150,160,170): cielo beige calido
+Atmosphere.Decay = Color3.fromRGB(0, 0, 0) -- // v02 (antes 110,120,130)
+Atmosphere.Offset = 1
 Atmosphere.Glare = 0
 Atmosphere.Density = BASE.Density
 Atmosphere.Haze = BASE.Haze
