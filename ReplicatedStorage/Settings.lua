@@ -217,14 +217,25 @@ return {
 
 		-- // Horizontal (cabeceo / alabeo -> aceleracion)
 		MAX_SPEED = 140, -- // studs/s
-		HORIZ_ACCEL_MAX = 45, -- // studs/s^2 con la inclinacion maxima. La resistencia del aire es HORIZ_ACCEL_MAX / MAX_SPEED
+		HORIZ_ACCEL_MAX = 32, -- // v14 (antes 45): nave pesada. studs/s^2 con la inclinacion maxima. La resistencia del aire es HORIZ_ACCEL_MAX / MAX_SPEED
 		MAX_TILT = 0.4, -- // rad
-		TILT_FREQ = 4, -- // rad/s
+		TILT_FREQ = 2.4, -- // v14 (antes 4): rad/s. Mas bajo = la nave tarda mas en inclinarse (inercia de rotacion)
 		TILT_DAMPING = 0.85,
 		BRAKE_GAIN = 0.03, -- // rad de inclinacion de frenado por cada stud/s sobre el limite de velocidad
 		BRAKE_TILT_FRACTION = 0.8, -- // Fraccion de MAX_TILT disponible para frenar
-		TURN_RATE = math.rad(55), -- // rad/s
-		YAW_SMOOTH = 0.35, -- // s
+		TURN_RATE = math.rad(38), -- // v14 (antes 55): rad/s
+		YAW_SMOOTH = 0.8, -- // v14 (antes 0.35): s. La guinada arranca y se detiene con inercia
+
+		-- // v14: manejo tipo Ranger (Interstellar). Las teclas son digitales; se convierten en una palanca virtual que se mueve
+		-- // con velocidad limitada (como una palanca / yugo) y la nave responde con peso: tarda en inclinarse, en acelerar y en frenar.
+		STICK_RISE = 1.6, -- // v14: unidades de palanca / s al empujar (1 = tope). 1.6 = 0.6 s hasta el tope
+		STICK_RETURN = 2.4, -- // v14: ...al soltar (vuelve a 0 un poco mas rapido que al empujar)
+		COLLECTIVE_RISE = 1.2, -- // v14: palanca del colectivo. Mas lenta: los motores verticales tardan en subir de potencia
+		COLLECTIVE_RETURN = 2, -- // v14
+		HOLD_ASSIST = 0.006, -- // v14: rad de inclinacion de frenado por cada stud/s con la palanca centrada (la computadora de vuelo frena sola, suave)
+		HOLD_ASSIST_FRACTION = 0.5, -- // v14: fraccion de MAX_TILT que puede usar ese freno
+		NOSE_ALIGN = 0.35, -- // v14: 1/s. Gira la velocidad hacia donde apunta la nariz (vuelo hacia adelante). 0 = deriva libre. Se anula al usar Q / E
+		ACCEL_CAP = 1.4, -- // v14: tope de la aceleracion horizontal total, en veces HORIZ_ACCEL_MAX (debe ser < SERVER_TOLERANCE)
 
 		-- // Aterrizaje: menos inclinacion y velocidad
 		LAND_TILT_SCALE = 0.35,

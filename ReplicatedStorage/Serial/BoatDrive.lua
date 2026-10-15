@@ -154,6 +154,11 @@ function BoatDrive.new(Boat: Model, Seat: VehicleSeat)
 		YawRate = 0,
 		Swept = false, -- // true cuando la ola alcanzo el techo y la nave volvio a Water. El cliente lo borra
 		Collective = 0,
+		-- // v14: palanca virtual (-1..1). Las teclas son digitales; la nave responde a la palanca, no a la tecla
+		StickThrottle = 0,
+		StickStrafe = 0,
+		StickSteer = 0,
+		StickCollective = 0,
 
 		Position = Seat.Position,
 		Yaw = Yaw,
@@ -222,6 +227,13 @@ local function Approach(Current: number, Target: number, dt: number, Attack: num
 	return Current + (Target - Current) * (1 - math.exp(-dt / Tau))
 end
 
+-- // v14: mueve la palanca virtual hacia la orden con velocidad limitada. Al soltar (orden 0) vuelve al centro con Return.
+local function Stick(Current: number, Target: number, dt: number, Rise: number, Return: number): number
+	local Rate = if Target == 0 then Return else Rise
+	local Step = Rate * dt
+	return Current + math.clamp(Target - Current, -Step, Step)
+end
+
 -- // Techo absoluto de vuelo (Y). No depende de la ola: la ola gigante no se puede sobrevolar.
 local function Ceiling(): number
 	return SEA_LEVEL + FLIGHT.MAX_ALTITUDE
@@ -280,6 +292,7 @@ function BoatDrive.SetMode(self, Mode: string)
 		self.SpeedScale, self.TiltScale, self.Overload = 1, 1, 0
 		self.YawRate = 0
 		self.Swept = false
+		self.StickThrottle, self.StickStrafe, self.StickSteer, self.StickCollective = 0, 0, 0, 0 -- // v14
 	elseif Mode == 'Water' then
 		self.Speed = math.clamp(self.Vel:Dot(self.Flat), -MAX_REVERSE_SPEED, MAX_SPEED)
 		self.Vel = Vector3.zero
@@ -291,8 +304,14 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 	local Mode = self.Mode
 	local Landing = Mode == 'Landing'
 	local Takeoff = Mode == 'Takeoff'
-	local Strafe = if Input then Input.Strafe or 0 else 0
-	local Collective = if Input then Input.Collective or 0 else 0
+	-- // v14: las ordenes (teclas) pasan por la palanca virtual antes de usarse
+	self.StickThrottle = Stick(self.StickThrottle, Throttle, dt, FLIGHT.STICK_RISE, FLIGHT.STICK_RETURN)
+	self.StickSteer = Stick(self.StickSteer, Steer, dt, FLIGHT.STICK_RISE, FLIGHT.STICK_RETURN)
+	self.StickStrafe = Stick(self.StickStrafe, if Input then Input.Strafe or 0 else 0, dt, FLIGHT.STICK_RISE, FLIGHT.STICK_RETURN)
+	self.StickCollective = Stick(self.StickCollective, if Input then Input.Collective or 0 else 0, dt, FLIGHT.COLLECTIVE_RISE, FLIGHT.COLLECTIVE_RETURN)
+	Throttle, Steer = self.StickThrottle, self.StickSteer
+	local Strafe = self.StickStrafe
+	local Collective = self.StickCollective
 	self.Collective = Collective
 
 	-- // 1. Guinada (rumbo)
@@ -384,8 +403,16 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 		return math.sign(Speed) * math.min(Over * FLIGHT.BRAKE_GAIN, FLIGHT.MAX_TILT * FLIGHT.BRAKE_TILT_FRACTION) * Authority * LandTilt
 	end
 
-	local PitchCommand = math.clamp(InputTilt(Throttle, Vf) + BrakeTilt(Vf), -FLIGHT.MAX_TILT, FLIGHT.MAX_TILT)
-	local RollCommand = math.clamp(InputTilt(Strafe, Vr) + BrakeTilt(Vr), -FLIGHT.MAX_TILT, FLIGHT.MAX_TILT)
+	-- // v14: con la palanca centrada la computadora de vuelo inclina al reves, suave, y la nave frena sola (como retener posicion).
+	-- // Se desvanece al empujar la palanca (1 - |palanca|), asi no pelea con la orden del piloto.
+	local function HoldTilt(Speed: number, Command: number): number
+		local Free = math.clamp(1 - math.abs(Command) * 3, 0, 1)
+		local Tilt = math.clamp(Speed * FLIGHT.HOLD_ASSIST, -FLIGHT.MAX_TILT * FLIGHT.HOLD_ASSIST_FRACTION, FLIGHT.MAX_TILT * FLIGHT.HOLD_ASSIST_FRACTION)
+		return Tilt * Free * Authority * LandTilt
+	end
+
+	local PitchCommand = math.clamp(InputTilt(Throttle, Vf) + BrakeTilt(Vf) + HoldTilt(Vf, Throttle), -FLIGHT.MAX_TILT, FLIGHT.MAX_TILT)
+	local RollCommand = math.clamp(InputTilt(Strafe, Vr) + BrakeTilt(Vr) + HoldTilt(Vr, Strafe), -FLIGHT.MAX_TILT, FLIGHT.MAX_TILT)
 
 	local Freq, Damping = FLIGHT.TILT_FREQ, FLIGHT.TILT_DAMPING
 	self.PitchRate += (Freq * Freq * (PitchCommand - self.Pitch) - 2 * Damping * Freq * self.PitchRate) * dt
@@ -397,7 +424,21 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 	local AccelForward = -FLIGHT.HORIZ_ACCEL_MAX * (self.Pitch / FLIGHT.MAX_TILT) * Authority
 	local AccelRight = -FLIGHT.HORIZ_ACCEL_MAX * (self.Roll / FLIGHT.MAX_TILT) * Authority
 	local Drag = FLIGHT.HORIZ_ACCEL_MAX / FLIGHT.MAX_SPEED
-	local Vel = self.Vel + (Flat * AccelForward + Right * AccelRight - self.Vel * Drag) * dt
+	-- // v14: gira la velocidad hacia donde apunta la nariz (conserva la rapidez, solo cambia la direccion). Se anula con Q / E.
+	local Align = Vector3.zero
+	local Lateral = self.Vel:Dot(Right)
+	if FLIGHT.NOSE_ALIGN > 0 and math.abs(Lateral) > 0.01 then
+		local Weight = math.clamp(1 - math.abs(Strafe) * 3, 0, 1) * Authority
+		Align = -Right * Lateral * FLIGHT.NOSE_ALIGN * Weight + Flat * math.abs(Lateral) * FLIGHT.NOSE_ALIGN * Weight * math.sign(Vf + 0.001)
+	end
+	-- // v14: tope a la aceleracion horizontal total (empuje maximo). Evita que freno + resistencia + alineacion superen los
+	-- // limites del servidor (Validate usa HORIZ_ACCEL_MAX * SERVER_TOLERANCE).
+	local HorizAccel = Flat * AccelForward + Right * AccelRight - self.Vel * Drag + Align
+	local AccelMax = FLIGHT.HORIZ_ACCEL_MAX * FLIGHT.ACCEL_CAP
+	if HorizAccel.Magnitude > AccelMax then
+		HorizAccel = HorizAccel.Unit * AccelMax
+	end
+	local Vel = self.Vel + HorizAccel * dt
 	local HardSpeed = FLIGHT.MAX_SPEED * 1.05
 	if Vel.Magnitude > HardSpeed then
 		Vel = Vel.Unit * HardSpeed
@@ -426,9 +467,9 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 	elseif Landing then
 		Rate = -math.clamp(self.Height * FLIGHT.LAND_RATE_PER_HEIGHT, FLIGHT.LAND_MIN_RATE, FLIGHT.LAND_MAX_RATE)
 	elseif Collective > 0 then
-		Rate = FLIGHT.MAX_CLIMB_RATE
+		Rate = FLIGHT.MAX_CLIMB_RATE * Collective -- // v14: proporcional a la palanca (antes todo o nada)
 	elseif Collective < 0 then
-		Rate = -FLIGHT.MAX_DESCENT_RATE
+		Rate = FLIGHT.MAX_DESCENT_RATE * Collective
 	end
 	local Alt = math.clamp(self.AltTarget + Rate * dt, Pos.Y - FLIGHT.ALT_LEAD, Pos.Y + FLIGHT.ALT_LEAD)
 	local SoftFloor = self.FloorTarget
