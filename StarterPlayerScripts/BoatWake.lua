@@ -369,17 +369,19 @@ local function update(s)
 	local speed = Vector3.new(vel.X, 0, vel.Z).Magnitude
 	-- En vuelo (FlightMode ~= Water, ver Serial/BoatDrive) la nave no toca el agua: sin salpicaduras de impacto.
 	-- v14: la espuma y el spray solo aparecen si vuela cerca del agua (WAKE_FULL_HEIGHT..WAKE_HEIGHT, se desvanecen).
-	local OnWater = (s.seat.Parent:GetAttribute("FlightMode") or "Water") == "Water"
+	local WaterMode = (s.seat.Parent:GetAttribute("FlightMode") or "Water") == "Water"
+	-- // v22: el modo pasa a Water unos studs antes de tocar el agua al aterrizar: espuma, spray e impacto tambien dependen de la altura real
 	local fade = 1
-	if not OnWater then
-		local h = HeightLookup.Lookup(pos, "PRECISE", false)
-		if h == -1 then
+	local h = HeightLookup.Lookup(pos, "PRECISE", false)
+	if h == -1 then
+		if not WaterMode then
 			fade = 0
-		else
-			local height = pos.Y - h - s.main.Size.Y / 2
-			fade = math.clamp(1 - (height - FLIGHT.WAKE_FULL_HEIGHT) / (FLIGHT.WAKE_HEIGHT - FLIGHT.WAKE_FULL_HEIGHT), 0, 1)
 		end
+	else
+		local height = pos.Y - h - s.main.Size.Y / 2
+		fade = math.clamp(1 - (height - FLIGHT.WAKE_FULL_HEIGHT) / (FLIGHT.WAKE_HEIGHT - FLIGHT.WAKE_FULL_HEIGHT), 0, 1)
 	end
+	local OnWater = WaterMode and fade >= 1
 	local active = speed > MIN_SPEED and fade > 0.05
 	s.frame += 1
 

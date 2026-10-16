@@ -137,15 +137,18 @@ function WakeTracker.Update()
 		b.prevPos, b.prevClock = center, clock
 		local speed = Vector3.new(b.vel.X, 0, b.vel.Z).Magnitude
 		-- // v14: en vuelo solo hay estela cerca del agua; se desvanece entre WAKE_FULL_HEIGHT y WAKE_HEIGHT
+		-- // v22: el desvanecimiento por altura vale tambien en modo Water: al aterrizar el modo pasa a Water unos studs antes de
+		-- // tocar el agua y la estela / el spray aparecian en el aire.
 		local fade = 1
-		if (b.boat:GetAttribute("FlightMode") or "Water") ~= "Water" then
-			local h = HeightLookup.Lookup(center, "PRECISE", false)
-			if h == -1 then
+		local InWater = (b.boat:GetAttribute("FlightMode") or "Water") == "Water"
+		local h = HeightLookup.Lookup(center, "PRECISE", false)
+		if h == -1 then
+			if not InWater then
 				fade = 0
-			else
-				local Height = center.Y - h - main.Size.Y / 2
-				fade = math.clamp(1 - (Height - FLIGHT.WAKE_FULL_HEIGHT) / (FLIGHT.WAKE_HEIGHT - FLIGHT.WAKE_FULL_HEIGHT), 0, 1)
 			end
+		else
+			local Height = center.Y - h - main.Size.Y / 2
+			fade = math.clamp(1 - (Height - FLIGHT.WAKE_FULL_HEIGHT) / (FLIGHT.WAKE_HEIGHT - FLIGHT.WAKE_FULL_HEIGHT), 0, 1)
 		end
 		if fade > 0.05 and speed > MIN_SPEED and now - b.lastT >= INTERVAL and (center - b.lastPos).Magnitude >= MIN_DIST then
 			b.lastT = now

@@ -590,7 +590,14 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 	local Ceil = Ceiling()
 	local Rate = 0
 	if Takeoff then
-		Rate = if self.Height < FLIGHT.GATE_HEIGHT + FLIGHT.TAKEOFF_EXTRA then FLIGHT.TAKEOFF_CLIMB_RATE else 0
+		if self.Height < FLIGHT.GATE_HEIGHT + FLIGHT.TAKEOFF_EXTRA then
+			Rate = FLIGHT.TAKEOFF_CLIMB_RATE
+		elseif Collective > 0 then
+			-- // v22: terminada la subida automatica Q / E ya responden aunque el servidor tarde en pasar a Flight
+			Rate = FLIGHT.MAX_CLIMB_RATE * Collective
+		elseif Collective < 0 then
+			Rate = FLIGHT.MAX_DESCENT_RATE * Collective
+		end
 	elseif Landing then
 		Rate = -math.clamp(self.Height * FLIGHT.LAND_RATE_PER_HEIGHT, FLIGHT.LAND_MIN_RATE, FLIGHT.LAND_MAX_RATE)
 	elseif Collective > 0 then
@@ -643,7 +650,7 @@ end
 
 -- // Mide el casco en un CFrame del asiento: altura media sobre la altura de flotacion, claridad del punto mas bajo y si la
 -- // ola ya supera el techo. Lo usa el servidor para validar el vuelo. nil si no se pudo leer la ola.
-function BoatDrive.Measure(self, CF: CFrame, dt: number?)
+function BoatDrive.Measure(self, CF: CFrame, dt: number?, Lag: number?)
 	RefreshZone(self, CF.Position, dt or 0)
 	local Heights, Dy = SampleHull(self, CF.Position, CF, 0, nil)
 	if Heights == nil then
@@ -653,6 +660,18 @@ function BoatDrive.Measure(self, CF: CFrame, dt: number?)
 	local MinClearance = math.huge
 	for i = 1, 4 do
 		MinClearance = math.min(MinClearance, Y + Dy[i] - Heights[i] - self.RestOffset)
+	end
+	-- // v22: el CFrame replicado del piloto llega con retraso; se compara tambien contra la ola de hace Lag segundos (la que
+	-- // el piloto veia) y se toma la mejor de las dos claridades, para no acusar de infraccion a una nave que va bien.
+	if Lag ~= nil and Lag > 0 then
+		local Past, PastDy = SampleHull(self, CF.Position, CF, -Lag, nil)
+		if Past ~= nil then
+			local PastClearance = math.huge
+			for i = 1, 4 do
+				PastClearance = math.min(PastClearance, Y + PastDy[i] - Past[i] - self.RestOffset)
+			end
+			MinClearance = math.max(MinClearance, PastClearance)
+		end
 	end
 	local Floor = FloorFrom(self, Heights, Dy, FLIGHT.MIN_CLEARANCE)
 	return {
@@ -675,8 +694,8 @@ end
 -- // Comprobacion del servidor cada FLIGHT.VALIDATE_INTERVAL segundos, con el CFrame que el piloto replica.
 -- // Devuelve (motivo de infraccion o nil, medicion). Mide limites de estado y de fuerzas (velocidad, aceleracion horizontal,
 -- // velocidad vertical, techo y claridad); el servidor decide que hacer con las infracciones.
-function BoatDrive.Validate(self, Track, Interval: number, CF: CFrame, Mode: string): (string?, { [string]: any }?)
-	local Measure = BoatDrive.Measure(self, CF, Interval)
+function BoatDrive.Validate(self, Track, Interval: number, CF: CFrame, Mode: string, Lag: number?): (string?, { [string]: any }?)
+	local Measure = BoatDrive.Measure(self, CF, Interval, Lag) -- // v22: Lag = ping del piloto (s)
 	local Position = CF.Position
 	local Velocity = if Track.LastPos then (Position - Track.LastPos) / Interval else nil
 	Track.LastPos = Position
@@ -702,7 +721,9 @@ function BoatDrive.Validate(self, Track, Interval: number, CF: CFrame, Mode: str
 	if Position.Y > Ceiling() + FLIGHT.CEILING_TOLERANCE then
 		return 'ceiling', Measure
 	end
-	if not Measure.Swept and Measure.MinClearance < ClearanceFor(Mode) - FLIGHT.CLEARANCE_TOLERANCE then
+	-- // v22: la claridad solo se vigila en Flight. En Takeoff / Landing la nave esta pegada al agua a proposito (pisos de
+	-- // despegue / aterrizaje) y la medicion del servidor (CFrame con retraso + movimiento visual) daba falsos 'clearance'.
+	if Mode == 'Flight' and not Measure.Swept and Measure.MinClearance < ClearanceFor(Mode) - FLIGHT.CLEARANCE_TOLERANCE then
 		return 'clearance', Measure
 	end
 	if Horizontal ~= nil then

@@ -31,6 +31,7 @@ local StepConnection = nil
 local EventConnection = nil
 local Paused = false -- // true: el servidor tiene la nave (aterrizaje forzado) y este cliente no la mueve
 local Held = {} -- // [Enum.KeyCode] = true mientras esta pulsada
+local DebugClock = 0 -- // v22: para limitar los avisos de diagnostico (Settings.FLIGHT.DEBUG)
 
 local function GetMode(): string
 	return if Boat then Boat:GetAttribute('FlightMode') or 'Water' else 'Water'
@@ -110,6 +111,15 @@ local function Step(dt: number)
 	-- // En agua A / D son el volante (Seat.Steer); en vuelo BoatDrive ignora Steer y usa el alabeo (Input.Roll)
 	BoatDrive.Step(Drive, dt, Seat.Throttle, Seat.Steer, false, Input)
 	BoatDrive.Apply(Drive)
+
+	-- // v22 (temporal): con Q / E pulsadas, una vez por segundo muestra por que la nave si / no sube. Quitar con DEBUG = false
+	if FLIGHT.DEBUG and Input.Collective ~= 0 and os.clock() - DebugClock >= 1 then
+		DebugClock = os.clock()
+		local function Fmt(Value: any): string
+			return if typeof(Value) == 'number' then string.format('%.1f', Value) else tostring(Value)
+		end
+		warn(`[Vuelo][debug] Q/E: input={Input.Collective} modoAtributo={GetMode()} modoDrive={Drive.Mode} palanca={Fmt(Drive.StickCollective)} altura={Fmt(Drive.Height)} vy={Fmt(Drive.VerticalSpeed)} altObjetivo={Fmt(Drive.AltTarget)} pisoBlando={Fmt(Drive.FloorTarget)} Y={Fmt(Drive.Position.Y)} techo={Fmt(BoatDrive.GetCeiling())}`)
+	end
 end
 
 local function Connect()

@@ -78,6 +78,8 @@ local LastRequest = {}
 local Track = BoatDrive.NewTrack()
 local ValidateTimer = 0
 local LastVelocity = Vector3.zero
+local LastLag = 0 -- // v22: ping del piloto (s), para comparar su CFrame replicado con la ola de hace un instante
+local LastHeight = 0 -- // v22: ultima altura medida sobre el agua (para los sonidos de agua)
 
 local function GetDriver(): Player?
 	local Occupant = VehicleSeat.Occupant
@@ -115,8 +117,12 @@ end
 
 -- // Infraccion confirmada: se suspende al cliente, el servidor toma la nave desde su posicion replicada (con el techo
 -- // aplicado) y la aterriza solo. No se puede volver a despegar durante LOCKOUT_SECONDS.
-local function Enforce(Reason: string)
+local function Enforce(Reason: string, Measure: { [string]: any }?, Mode: string?)
 	warn(`[Vuelo] {Boat.Name}: {Reason}. Aterrizaje forzado.`)
+	-- // v22: diagnostico (Settings.FLIGHT.DEBUG): que midio el servidor justo antes de aterrizar la nave
+	if FLIGHT.DEBUG and Measure ~= nil then
+		warn(`[Vuelo][debug] modo={Mode} altura={string.format('%.1f', Measure.Height)} claridad={string.format('%.1f', Measure.MinClearance)} piso={string.format('%.1f', Measure.Floor)} vy={string.format('%.1f', LastVelocity.Y)} ping={string.format('%.3f', LastLag)} swept={Measure.Swept}`)
+	end
 	FlightLockUntil = os.clock() + FLIGHT.LOCKOUT_SECONDS
 	Drive = BoatDrive.new(Boat, VehicleSeat)
 	local Position = Drive.Position
@@ -192,18 +198,24 @@ RunService.PostSimulation:Connect(function(dt)
 	local Mode = Boat:GetAttribute('FlightMode')
 	local Reason, Measure
 	if GetDriver() ~= nil and not ServerControl then
-		Reason, Measure = BoatDrive.Validate(Drive, Track, Interval, VehicleSeat.CFrame, Mode)
+		local Driver = GetDriver()
+		LastLag = if Driver then math.clamp(Driver:GetNetworkPing(), 0, 0.5) else 0
+		Reason, Measure = BoatDrive.Validate(Drive, Track, Interval, VehicleSeat.CFrame, Mode, LastLag)
 	elseif Mode ~= 'Water' then
 		Measure = BoatDrive.Measure(Drive, VehicleSeat.CFrame, Interval)
 	end
 	if Measure == nil then
+		if Mode == 'Water' then
+			LastHeight = 0
+		end
 		return
 	end
+	LastHeight = Measure.Height
 
 	if Reason ~= nil then
 		Track.Strikes += 1
 		if Track.Strikes >= FLIGHT.STRIKES_TO_ENFORCE then
-			Enforce(Reason)
+			Enforce(Reason, Measure, Mode)
 			return
 		end
 	else
@@ -446,7 +458,8 @@ RunService.PostSimulation:Connect(function(dt)
 	LastPosition = Position
 	MeasuredSpeed += (Moved / dt - MeasuredSpeed) * (1 - math.exp(-dt / 0.3))
 
-	local WaterTarget = if Boat:GetAttribute('FlightMode') == 'Water' then 1 else 0
+	-- // v22: el agua solo suena si de verdad esta cerca de ella (al aterrizar el modo pasa a Water unos studs antes de tocarla)
+	local WaterTarget = if Boat:GetAttribute('FlightMode') == 'Water' and LastHeight <= FLIGHT.WAKE_FULL_HEIGHT then 1 else 0
 	WaterGain += (WaterTarget - WaterGain) * (1 - math.exp(-dt / 0.6))
 
 	local throttle = VehicleSeat.Throttle

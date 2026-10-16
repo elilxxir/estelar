@@ -183,6 +183,7 @@ return {
 	-- // La referencia de vuelo es la superficie de Gerstner muestreada (HeightLookup); los planos del mar no colisionan.
 	FLIGHT = {
 		ENABLED = true,
+		DEBUG = true, -- // v22: temporal. Avisos de diagnostico en Output: Q / E (BoatDriver) y aterrizaje forzado (Handler). Poner en false al terminar
 		KEYS = {
 			Toggle = Enum.KeyCode.F, -- // Despegar / aterrizar (en aterrizaje: cancelar y volver a subir)
 			Up = Enum.KeyCode.E, -- // v14: subir (propulsores verticales, gas hacia abajo)
