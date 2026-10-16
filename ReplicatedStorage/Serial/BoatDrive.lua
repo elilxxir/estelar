@@ -357,6 +357,11 @@ local function VisualMotion(self, Pos: Vector3, dt: number): (Vector3, CFrame)
 		Roll += S * BM.SWAY.ROLL * (math.noise(c * f * 0.9, 15.5) * 1.4 + 0.6 * math.sin(c * f * 2 * math.pi))
 		Yaw += S * BM.SWAY.YAW * math.noise(c * f * 0.7, 33.3) * 1.4
 		Bob += S * BM.SWAY.BOB * math.noise(c * f * 1.2, 41.7) * 1.4
+		-- // v23: cabeceo, alabeo y sube-baja lentos y de ritmo distinto: la nave flota y se mece sobre el agua
+		local SW, TwoPi = BM.SWAY.SWELL, math.pi * 2
+		Pitch += S * SW.PITCH * (math.sin(c * SW.FREQ * 0.83 * TwoPi + 0.7) + 0.4 * math.sin(c * SW.FREQ * 1.9 * TwoPi))
+		Roll += S * SW.ROLL * (math.sin(c * SW.FREQ * TwoPi) + 0.35 * math.sin(c * SW.FREQ * 2.3 * TwoPi + 1.9))
+		Bob += S * SW.BOB * (math.sin(c * SW.FREQ * 1.17 * TwoPi + 2.1) + 0.5 * math.sin(c * SW.FREQ * 0.61 * TwoPi))
 		Roll -= self.SteerSmooth * BM.BANK * SpeedRatio -- // lado derecho abajo al virar a la derecha
 		Pitch += BM.SQUAT * math.clamp(self.AccelSmooth / ACCELERATION, -1, 1)
 	else
@@ -478,6 +483,12 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 				end
 			end
 		end
+		-- // v23: con el mar normal (la subida necesaria cabe de sobra en el controlador) el piso blando no se separa mas de
+		-- // LOOK_MAX_EXTRA del piso duro: antes seguia el maximo de la ola de los proximos segundos y la nave, al bajar con Q,
+		-- // quedaba pegada a ese piso y subia sola con cada ola. Con la ola gigante (Overload alto) no se limita.
+		if Overload < FLIGHT.LOOK_CALM_OVERLOAD and self.HardFloor ~= nil then
+			FloorMax = math.min(FloorMax, self.HardFloor + FLIGHT.LOOK_MAX_EXTRA)
+		end
 		self.LookFloor, self.Overload = FloorMax, Overload
 	end
 
@@ -593,13 +604,14 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 	local Ceil = Ceiling()
 	local Rate = 0
 	if Takeoff then
-		if self.Height < FLIGHT.GATE_HEIGHT + FLIGHT.TAKEOFF_EXTRA then
+		if Collective < 0 then
+			-- // v23: bajar con Q manda sobre la subida automatica (antes la nave volvia a subir sola hasta GATE + EXTRA)
+			Rate = FLIGHT.MAX_DESCENT_RATE * Collective
+		elseif self.Height < FLIGHT.GATE_HEIGHT + FLIGHT.TAKEOFF_EXTRA then
 			Rate = FLIGHT.TAKEOFF_CLIMB_RATE
 		elseif Collective > 0 then
 			-- // v22: terminada la subida automatica Q / E ya responden aunque el servidor tarde en pasar a Flight
 			Rate = FLIGHT.MAX_CLIMB_RATE * Collective
-		elseif Collective < 0 then
-			Rate = FLIGHT.MAX_DESCENT_RATE * Collective
 		end
 	elseif Landing then
 		Rate = -math.clamp(self.Height * FLIGHT.LAND_RATE_PER_HEIGHT, FLIGHT.LAND_MIN_RATE, FLIGHT.LAND_MAX_RATE)

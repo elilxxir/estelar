@@ -194,7 +194,7 @@ return {
 		}, -- // v17: W = propulsores principales, S = freno (sin marcha atras en vuelo). En modo agua W / A / S / D siguen siendo el volante del VehicleSeat
 
 		-- // Alturas
-		MIN_CLEARANCE = 8, -- // Altura minima del punto de flotacion mas bajo sobre su ola (con la inclinacion del casco)
+		MIN_CLEARANCE = 5, -- // Altura minima del punto de flotacion mas bajo sobre su ola (con la inclinacion del casco). v23: antes 8, la nave no podia bajar lo bastante
 		GATE_HEIGHT = 25, -- // Hasta esta altura no hay inclinacion horizontal ni aceleracion horizontal
 		GATE_BLEND = 15, -- // Studs sobre GATE_HEIGHT en los que la autoridad horizontal sube de 0 a 1
 		TAKEOFF_EXTRA = 20, -- // El despegue sube hasta GATE_HEIGHT + TAKEOFF_EXTRA
@@ -253,7 +253,9 @@ return {
 		-- // Muestreo hacia adelante: mira la altura de la ola a lo largo de la trayectoria
 		LOOKAHEAD_TIMES = { 0.5, 1, 1.75, 2.75 }, -- // s hacia el futuro (posicion = velocidad * t, ola = hora del servidor + t)
 		LOOK_INTERVAL = 0.05, -- // s entre muestreos
-		LOOK_MARGIN = 4, -- // studs extra de margen sobre MIN_CLEARANCE al mirar hacia adelante
+		LOOK_MARGIN = 2, -- // studs extra de margen sobre MIN_CLEARANCE al mirar hacia adelante (v23: antes 4)
+		LOOK_CALM_OVERLOAD = 0.5, -- // v23: por debajo de esta carga el piso blando se limita a LOOK_MAX_EXTRA sobre el piso duro (mar normal)
+		LOOK_MAX_EXTRA = 3, -- // v23: studs maximos entre piso blando y piso duro con el mar normal
 		LOOK_RATE_FRACTION = 0.7, -- // Fraccion de MAX_CLIMB_RATE que se considera "al limite del controlador"
 		MIN_SPEED_SCALE = 0.15, -- // Tope inferior del limite de velocidad por muestreo hacia adelante
 		MIN_TILT_SCALE = 0.35,
@@ -278,10 +280,10 @@ return {
 		-- // v19: movimiento SOLO visual de la nave (no entra en la fisica). Suspension en el aire y sacudidas en la ola gigante.
 		HOVER_MOTION = {
 			CALM_SPEED = 25, -- // studs/s: por encima de esta velocidad horizontal no hay balanceo de suspension
-			PITCH = 0.03, -- // rad
-			ROLL = 0.04, -- // rad
-			YAW = 0.012, -- // rad
-			BOB = 0.35, -- // studs de sube y baja
+			PITCH = 0.045, -- // rad (v23: antes 0.03)
+			ROLL = 0.06, -- // rad (v23: antes 0.04)
+			YAW = 0.015, -- // rad
+			BOB = 0.8, -- // studs de sube y baja (v23: antes 0.35)
 			FREQ = 0.45, -- // Hz aprox. del balanceo
 			VIBRATION = 0.004, -- // rad de vibracion de los motores a velocidad maxima
 		},
@@ -363,12 +365,19 @@ return {
 
 		-- // Balanceo visual (solo se ve, no entra en la fisica)
 		SWAY = {
-			PITCH = 0.018, -- // rad
-			ROLL = 0.035, -- // rad
-			YAW = 0.01, -- // rad
-			BOB = 0.3, -- // studs
-			FREQ = 0.22, -- // Hz aprox.
-			UNDERWAY = 0.5, -- // fraccion del balanceo que queda a velocidad maxima
+			PITCH = 0.03, -- // rad (v23: antes 0.018)
+			ROLL = 0.05, -- // rad (v23: antes 0.035)
+			YAW = 0.015, -- // rad
+			BOB = 0.6, -- // studs (v23: antes 0.3)
+			FREQ = 0.25, -- // Hz aprox.
+			UNDERWAY = 0.65, -- // fraccion del balanceo que queda a velocidad maxima (v23: antes 0.5)
+			-- // v23: ondulacion lenta que da la sensacion de flotar (cabeceo, alabeo y sube-baja con ritmos distintos)
+			SWELL = {
+				PITCH = 0.025, -- // rad
+				ROLL = 0.035, -- // rad
+				BOB = 0.5, -- // studs
+				FREQ = 0.28, -- // Hz aprox.
+			},
 		},
 		BANK = 0.14, -- // rad: la nave se inclina hacia adentro al virar a toda velocidad
 		SQUAT = 0.035, -- // rad: nariz arriba al acelerar, abajo al frenar
