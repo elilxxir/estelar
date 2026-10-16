@@ -4,6 +4,18 @@ This readme file mainly works as a list for improvements ideas, future sys integ
 Also include some issues which gotta be fixed.
 Currently working on Miller's planet, more places might be added, however, current objetive is developing a fully functional/interactive/bug free Miller's planet experience.
 
+=====================================================================================================================================
+Fix published game online sync, only driver sees the ship movement, others see it still, prob happens after respawning.
+Fix player fling when touching ship.
+Fix wrong teleport when leaving ship, make it possible to leave only when on water and standing still
+
+Search for every possible issue related to online sync (game published)
+=====================================================================================================================================
+
+Options for more realistic water [ask for recommendation]
+- Keep system and improve textures and physics
+- Change still water for native studio water (?), plus keep big wave from original system
+
 Player:
 * Custom walking anim (lift legs)
 * Add water FX (Beam when idle, splash when moving)
