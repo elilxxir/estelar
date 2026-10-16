@@ -6,6 +6,7 @@ Currently working on Miller's planet, more places might be added, however, curre
 vv GOTTA CHECK SERVER OUTPUT ON PUBLISHED GAME vv
 ================================================
 * Fix published game online sync, only driver sees the ship movement, others see it still, prob happens after respawning.
+* Possible cause to verify: ServerBoat/Handler may stop at `workspace.Camera.CameraType` on the server before assigning the seat's network owner; check Server Output. If so, the driver's local CFrame updates may not replicate to other players.
 * Fix player fling when touching ship.
 * Fix wrong teleport when leaving ship, make it possible to leave only when on water and standing still
 
