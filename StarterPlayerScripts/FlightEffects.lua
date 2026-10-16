@@ -21,6 +21,7 @@ local GAS, SOUNDS, SHAKE = FLIGHT.GAS, FLIGHT.SOUNDS, FLIGHT.SHAKE
 
 local STARTUP_DELAY = 6
 local SMOKE = 'rbxasset://textures/particles/smoke_main.dds'
+local SPARK = 'rbxasset://textures/particles/sparkles_main.dds'
 local POINT_NAMES = { 'TopLeft', 'TopRight', 'BottomLeft', 'BottomRight' }
 
 local LocalPlayer = Players.LocalPlayer
@@ -42,37 +43,77 @@ local function makeAtt(main, worldPos, worldDir, name)
 end
 
 -- // Boquilla de gas: una nube que se abre y un nucleo brillante y corto
-local function makeNozzle(att)
-	local puff = Instance.new('ParticleEmitter')
-	puff.Texture = SMOKE
-	puff.Color = ColorSequence.new(Color3.fromRGB(235, 245, 255), Color3.fromRGB(150, 170, 190))
-	puff.LightEmission = 0.5
-	puff.Lifetime = NumberRange.new(0.25, 0.55)
-	puff.Speed = NumberRange.new(28, 45)
-	puff.SpreadAngle = Vector2.new(7, 7)
-	puff.Drag = 2
-	puff.Rotation = NumberRange.new(0, 360)
-	puff.RotSpeed = NumberRange.new(-90, 90)
-	puff.Size = seq(0.8, 2.8)
-	puff.Transparency = seq(0.15, 1)
-	puff.Rate = 0
-	puff.Enabled = true
-	puff.Parent = att
+-- // v18: efectos de las boquillas. Cada boquilla es una lista de { e = emisor, base = Rate a empuje completo }.
+-- // PERSONALIZAR: crea una carpeta ReplicatedStorage > Gerstner > GasEffects con ParticleEmitters hechos en Studio.
+-- // Se clonan en cada boquilla (el Rate que les pongas es el de empuje completo; el script lo escala con el empuje).
+-- // Opcional: subcarpetas GasEffects > Vertical (boquillas de arriba / abajo) y GasEffects > Lateral (A / D).
+-- // Sin carpeta se usan los efectos por defecto de abajo.
+local EffectsRoot = RS:WaitForChild('Gerstner'):FindFirstChild('GasEffects')
+
+local function makeNozzle(att, kind: string)
+	local items = {}
+
+	if EffectsRoot then
+		local Source = EffectsRoot:FindFirstChild(kind) or EffectsRoot
+		for _, inst in Source:GetChildren() do
+			if inst:IsA('ParticleEmitter') then
+				local e = inst:Clone()
+				local base = e.Rate
+				e.Rate = 0
+				e.Enabled = true
+				e.Parent = att
+				table.insert(items, { e = e, base = base })
+			end
+		end
+		if #items > 0 then
+			return items
+		end
+	end
+
+	-- // Por defecto. LockedToPart = true: las particulas se mueven CON la nave, asi que salen disparadas desde la boquilla
+	-- // (antes nacian en el mundo, quedaban atras al avanzar como humo y atravesaban el casco). Chorro corto y direccional.
+	local jet = Instance.new('ParticleEmitter')
+	jet.Texture = SMOKE
+	jet.LockedToPart = true
+	jet.Color = ColorSequence.new(Color3.fromRGB(235, 245, 255), Color3.fromRGB(150, 170, 190))
+	jet.LightEmission = 0.5
+	jet.Lifetime = NumberRange.new(0.18, 0.32)
+	jet.Speed = NumberRange.new(55, 80)
+	jet.SpreadAngle = Vector2.new(4, 4)
+	jet.Drag = 0
+	jet.Rotation = NumberRange.new(0, 360)
+	jet.RotSpeed = NumberRange.new(-90, 90)
+	jet.Size = seq(0.6, 2.2)
+	jet.Transparency = seq(0.2, 1)
+	jet.Rate = 0
+	jet.Enabled = true
+	jet.Parent = att
+	table.insert(items, { e = jet, base = GAS.RATE })
 
 	local core = Instance.new('ParticleEmitter')
-	core.Texture = SMOKE
+	core.Texture = SPARK
+	core.LockedToPart = true
 	core.Color = ColorSequence.new(Color3.fromRGB(190, 225, 255))
 	core.LightEmission = 1
-	core.Lifetime = NumberRange.new(0.08, 0.16)
-	core.Speed = NumberRange.new(45, 65)
-	core.SpreadAngle = Vector2.new(3, 3)
+	core.Lifetime = NumberRange.new(0.08, 0.14)
+	core.Speed = NumberRange.new(80, 110)
+	core.SpreadAngle = Vector2.new(2, 2)
+	core.Drag = 0
 	core.Size = seq(0.9, 0.2)
 	core.Transparency = seq(0, 1)
 	core.Rate = 0
 	core.Enabled = true
 	core.Parent = att
+	table.insert(items, { e = core, base = GAS.RATE * 0.6 })
 
-	return { puff = puff, core = core }
+	return items
+end
+
+-- // Escala el Rate de todos los emisores de una boquilla (amount: 0 a 1 = empuje)
+local function setNozzle(items, amount: number)
+	for _, item in items do
+		item.e.Rate = item.base * amount
+	end
 end
 
 local function makeSound(Id: string, Parent: Instance, Name: string, Looped: boolean)
@@ -115,8 +156,8 @@ local function setupBoat(boat)
 	local up = seat.CFrame.UpVector
 	local downNozzles, upNozzles = {}, {} -- // downNozzles: gas hacia abajo (la nave sube); upNozzles: gas hacia arriba (baja)
 	for i, point in points do
-		table.insert(downNozzles, makeNozzle(makeAtt(main, point.WorldPosition, -up, 'GasDown' .. i)))
-		table.insert(upNozzles, makeNozzle(makeAtt(main, point.WorldPosition, up, 'GasUp' .. i)))
+		table.insert(downNozzles, makeNozzle(makeAtt(main, point.WorldPosition, -up, 'GasDown' .. i), 'Vertical'))
+		table.insert(upNozzles, makeNozzle(makeAtt(main, point.WorldPosition, up, 'GasUp' .. i), 'Vertical'))
 	end
 
 	-- // v17: boquillas laterales. Al virar a la derecha (D) sale gas por la izquierda, y al reves (A)
@@ -124,9 +165,9 @@ local function setupBoat(boat)
 	local leftNozzles, rightNozzles = {}, {}
 	for i, point in points do
 		if (point.WorldPosition - main.Position):Dot(right) < 0 then
-			table.insert(leftNozzles, makeNozzle(makeAtt(main, point.WorldPosition, -right, 'GasLeft' .. i)))
+			table.insert(leftNozzles, makeNozzle(makeAtt(main, point.WorldPosition, -right, 'GasLeft' .. i), 'Lateral'))
 		else
-			table.insert(rightNozzles, makeNozzle(makeAtt(main, point.WorldPosition, right, 'GasRight' .. i)))
+			table.insert(rightNozzles, makeNozzle(makeAtt(main, point.WorldPosition, right, 'GasRight' .. i), 'Lateral'))
 		end
 	end
 
@@ -201,22 +242,18 @@ local function update(s, dt: number)
 	s.lateral += (LateralTarget - s.lateral) * (1 - math.exp(-dt / 0.12))
 	local Lateral = s.lateral
 	for _, n in s.leftNozzles do
-		n.puff.Rate = GAS.RATE * GAS.LATERAL_SCALE * math.max(Lateral, 0)
-		n.core.Rate = GAS.RATE * GAS.LATERAL_SCALE * 0.6 * math.max(Lateral, 0)
+		setNozzle(n, GAS.LATERAL_SCALE * math.max(Lateral, 0))
 	end
 	for _, n in s.rightNozzles do
-		n.puff.Rate = GAS.RATE * GAS.LATERAL_SCALE * math.max(-Lateral, 0)
-		n.core.Rate = GAS.RATE * GAS.LATERAL_SCALE * 0.6 * math.max(-Lateral, 0)
+		setNozzle(n, GAS.LATERAL_SCALE * math.max(-Lateral, 0))
 	end
 
 	-- // Gas: sube = boquillas de abajo, baja = boquillas de arriba
 	for _, n in s.downNozzles do
-		n.puff.Rate = GAS.RATE * Climb
-		n.core.Rate = GAS.RATE * 0.6 * Climb
+		setNozzle(n, Climb)
 	end
 	for _, n in s.upNozzles do
-		n.puff.Rate = GAS.RATE * Descend
-		n.core.Rate = GAS.RATE * 0.6 * Descend
+		setNozzle(n, Descend)
 	end
 
 	-- // Propulsores principales: empuje segun velocidad horizontal y orden de avance
