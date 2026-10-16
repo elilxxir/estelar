@@ -1,7 +1,7 @@
 -- Script (servidor) hijo del modelo ServerBoat
 -- Entrada a la nave: el prompt de la parte "Door" sienta al jugador en el primer asiento libre
 -- (VehicleSeat = conductor, luego Seat1, Seat2, Seat3). Un asiento reservado no se asigna a dos jugadores a la vez.
--- Con Espacio (pedido por SeatExit) el jugador sale y se teletransporta a la parte "Exit" (si no existe, sobre "Door").
+-- Con Espacio (pedido por SeatExit) el jugador sale y se teletransporta a la puerta (Door).
 -- Nadie salta fuera de los asientos: mientras esta sentado su salto vale 0.
 
 --!nonstrict
@@ -13,7 +13,7 @@ local Door = Boat:WaitForChild('Door', 10)
 local DriverSeat = Boat:WaitForChild('VehicleSeat')
 
 local SEAT_NAMES = { 'Seat1', 'Seat2', 'Seat3' }
-local EXIT_HEIGHT = 3.5 -- // studs sobre la parte de salida a los que aparece el jugador
+local EXIT_HEIGHT = 3.2 -- // studs sobre la base de Door a los que aparece el jugador (altura del HumanoidRootPart)
 local SIT_TIMEOUT = 1.5 -- // segundos maximos esperando a que el asiento reserve al jugador
 
 if Door == nil then
@@ -64,6 +64,7 @@ local function RefreshPrompt()
 		end
 	end
 	Prompt.Enabled = AnyFree
+	Prompt:SetAttribute('Free', AnyFree) -- // SeatExit lo usa para ocultar el prompt al piloto / pasajeros sentados
 end
 
 local function GetSeatOf(Humanoid: Humanoid): Seat?
@@ -76,11 +77,8 @@ local function GetSeatOf(Humanoid: Humanoid): Seat?
 end
 
 local function ExitCFrame(): CFrame
-	local Part = Boat:FindFirstChild('Exit')
-	if Part == nil or not Part:IsA('BasePart') then
-		Part = Door
-	end
-	return Part.CFrame * CFrame.new(0, Part.Size.Y / 2 + EXIT_HEIGHT, 0)
+	-- // Aparece en la puerta: en su centro, a la altura de su base (EXIT_HEIGHT sobre ella) y mirando como ella
+	return Door.CFrame * CFrame.new(0, -Door.Size.Y / 2 + EXIT_HEIGHT, 0)
 end
 
 local function LockJump(Humanoid: Humanoid)

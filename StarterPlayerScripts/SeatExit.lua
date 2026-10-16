@@ -14,6 +14,35 @@ local ACTION_NAME = 'BoatSeatExit'
 local Player = Players.LocalPlayer
 local Bound = false
 local CurrentSeat: Seat? = nil
+local DoorPrompt: ProximityPrompt? = nil
+local PromptConnection: RBXScriptConnection? = nil
+
+-- // El prompt de la puerta (usa la tecla E) no debe aparecer ni robar teclas mientras se esta sentado
+local function HidePrompt(Seat: Seat)
+	local Door = Seat.Parent:FindFirstChild('Door')
+	local Prompt = Door and Door:FindFirstChildOfClass('ProximityPrompt')
+	if Prompt == nil then
+		return
+	end
+	DoorPrompt = Prompt
+	Prompt.Enabled = false
+	PromptConnection = Prompt:GetPropertyChangedSignal('Enabled'):Connect(function()
+		if Prompt.Enabled then
+			Prompt.Enabled = false -- // el servidor lo reactivo (otro asiento quedo libre): se vuelve a ocultar aqui
+		end
+	end)
+end
+
+local function ShowPrompt()
+	if PromptConnection then
+		PromptConnection:Disconnect()
+		PromptConnection = nil
+	end
+	if DoorPrompt then
+		DoorPrompt.Enabled = DoorPrompt:GetAttribute('Free') ~= false
+		DoorPrompt = nil
+	end
+end
 
 local function OnAction(_, State: Enum.UserInputState)
 	if State == Enum.UserInputState.Begin and CurrentSeat then
@@ -27,6 +56,10 @@ end
 
 local function SetSeat(SeatPart: Instance?)
 	if SeatPart and SeatPart:GetAttribute('BoatSeat') then
+		if CurrentSeat ~= SeatPart then
+			ShowPrompt()
+			HidePrompt(SeatPart)
+		end
 		CurrentSeat = SeatPart
 		if not Bound then
 			Bound = true
@@ -34,6 +67,7 @@ local function SetSeat(SeatPart: Instance?)
 		end
 	else
 		CurrentSeat = nil
+		ShowPrompt()
 		if Bound then
 			Bound = false
 			ContextActionService:UnbindAction(ACTION_NAME)

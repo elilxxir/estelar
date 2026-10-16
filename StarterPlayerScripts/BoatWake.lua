@@ -263,13 +263,10 @@ local function setupBoat(boat)
 			Size = seq(2, 7), Transparency = fade(0.3, 0.6, 1),
 		}), 18, 0.8, 'water')
 
-		-- Surface foam left in the world (attachment is moved to the water height every frame)
+		-- v21: la espuma de superficie ya NO es de particulas (quedaban fijas en el mundo mientras el agua subia y bajaba:
+		-- se hundian, se encimaban y reaparecian). La estela se pinta en los vertices del mar (WakeTracker + ParallelWorker).
+		-- Solo se conserva el punto que sigue el agua bajo cada Propulsor, para el agua levantada por los gases (downwash).
 		local foamAtt = makeAtt(main, srcPos, up, "SurfaceFoam" .. i)
-		add(makeEmitter(foamAtt, {
-			Lifetime = NumberRange.new(2, 3.5), Speed = NumberRange.new(0.5, 2),
-			Spread = Vector2.new(80, 80), Size = seq(4, 12), Transparency = fade(0.45, 0.7, 1),
-			Orientation = Enum.ParticleOrientation.FacingCameraWorldUp, RotSpeed = NumberRange.new(-15, 15), Light = 0.15,
-		}), 6, 0.7, 'surface')
 		table.insert(foamAtts, foamAtt)
 	end
 

@@ -11,6 +11,7 @@
 local Players = game:GetService('Players')
 local RunService = game:GetService('RunService')
 local ContextActionService = game:GetService('ContextActionService')
+local UIS = game:GetService('UserInputService')
 local RS = game:GetService('ReplicatedStorage')
 
 local Gerstner = RS:WaitForChild('Gerstner')
@@ -96,9 +97,15 @@ local function Step(dt: number)
 		BoatDrive.SetMode(Drive, Mode)
 	end
 
+	-- // v21: las teclas se leen directamente (IsKeyDown). Antes dependian de ContextActionService y otro script (por ejemplo
+	-- // el prompt de la puerta, que usa E) podia quedarse con la tecla y Q / E dejaban de responder.
+	local Typing = UIS:GetFocusedTextBox() ~= nil
+	local function Down(Key: Enum.KeyCode): number
+		return if not Typing and UIS:IsKeyDown(Key) then 1 else 0
+	end
 	local Input = {
-		Roll = (if Held[Keys.RollRight] then 1 else 0) - (if Held[Keys.RollLeft] then 1 else 0),
-		Collective = (if Held[Keys.Up] then 1 else 0) - (if Held[Keys.Down] then 1 else 0),
+		Roll = Down(Keys.RollRight) - Down(Keys.RollLeft),
+		Collective = Down(Keys.Up) - Down(Keys.Down),
 	}
 	-- // En agua A / D son el volante (Seat.Steer); en vuelo BoatDrive ignora Steer y usa el alabeo (Input.Roll)
 	BoatDrive.Step(Drive, dt, Seat.Throttle, Seat.Steer, false, Input)

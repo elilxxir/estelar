@@ -344,6 +344,44 @@ return {
 		CHECK_INTERVAL = 0.2, -- // segundos entre revisiones del servidor
 	},
 
+	-- // v21: movimiento de la nave en el agua (Serial/BoatDrive). Peso, balanceo, marea y bloqueo en la ola gigante.
+	BOAT_MOTION = {
+		-- // Respuesta al oleaje en calma: mas baja y menos amortiguada = nave pesada que se balancea (antes 8 / 0.9 / 10 / 0.85)
+		HEAVE_FREQ = 3.2, -- // rad/s. Subir y bajar con la ola
+		HEAVE_DAMPING = 0.55, -- // 1 = sin rebote; menos = se pasa un poco y vuelve
+		TILT_FREQ = 3, -- // rad/s. Cabeceo / alabeo
+		TILT_DAMPING = 0.45,
+		-- // Sobre la ola gigante la nave vuelve a la respuesta rigida de antes (si no, la ola la atraviesa)
+		GIANT_HEAVE_FREQ = 8,
+		GIANT_HEAVE_DAMPING = 0.9,
+		GIANT_TILT_FREQ = 10,
+		GIANT_TILT_DAMPING = 0.85,
+
+		-- // Balanceo visual (solo se ve, no entra en la fisica)
+		SWAY = {
+			PITCH = 0.018, -- // rad
+			ROLL = 0.035, -- // rad
+			YAW = 0.01, -- // rad
+			BOB = 0.3, -- // studs
+			FREQ = 0.22, -- // Hz aprox.
+			UNDERWAY = 0.5, -- // fraccion del balanceo que queda a velocidad maxima
+		},
+		BANK = 0.14, -- // rad: la nave se inclina hacia adentro al virar a toda velocidad
+		SQUAT = 0.035, -- // rad: nariz arriba al acelerar, abajo al frenar
+
+		-- // Marea: la corriente lleva siempre a la nave un poco (studs/s, en la direccion de la ola gigante)
+		CURRENT_SPEED = 1,
+
+		-- // Sobre la ola gigante: motor apagado (solo se puede girar) y la ola arrastra a la nave
+		GIANT_LOCK = {
+			START = 0.03, -- // fraccion de la altura de la ola gigante (0 a 1) donde empieza
+			FULL = 0.12, -- // ...y donde es completo
+			CUTOFF = 0.05, -- // con mas bloqueo que esto el acelerador no hace nada
+			EXTRA_DRAG = 2, -- // frenado extra del casco (veces DECELERATION) al estar bloqueada
+			CARRY = 0.85, -- // fraccion de la velocidad de la ola con la que la arrastra
+		},
+	},
+
 	-- // v20: vista bajo el agua (StarterPlayerScripts/UnderwaterView): el agua es opaca tambien desde abajo
 	UNDERWATER = {
 		ENABLED = true,

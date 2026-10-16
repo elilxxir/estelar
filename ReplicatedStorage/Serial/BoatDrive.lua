@@ -38,6 +38,7 @@ local Settings = require(script.Parent.Parent.Settings)
 local Gerstner = require(script.Parent.Parent)
 
 local FLIGHT = Settings.FLIGHT
+local BM = Settings.BOAT_MOTION -- // v21: peso, balanceo, marea y bloqueo en la ola gigante
 local SEA_LEVEL = Settings.GRID_SETTINGS.PLANE_OFFSET.Y -- // Y del mar en calma (las alturas de HeightLookup ya lo incluyen)
 
 -- // Control
@@ -186,6 +187,11 @@ function BoatDrive.new(Boat: Model, Seat: VehicleSeat)
 		StickRoll = 0, -- // A / D (alabeo)
 		StickBoost = 0, -- // W / S (propulsores principales)
 		StickCollective = 0,
+		GiantLock = 0, -- // v21: 0 a 1, cuanto la ola gigante ha apagado el motor y arrastra la nave
+		SwayGain = 0, -- // v21: balanceo visual en el agua (0 a 1)
+		SteerSmooth = 0, -- // v21: giro suavizado (para inclinar la nave al virar)
+		AccelSmooth = 0, -- // v21: aceleracion suavizada (nariz arriba al acelerar)
+		PrevSpeed = 0,
 
 		Position = Seat.Position,
 		Yaw = Yaw,
@@ -340,6 +346,21 @@ local function VisualMotion(self, Pos: Vector3, dt: number): (Vector3, CFrame)
 		local Vibration = HOVER.VIBRATION * math.clamp(Horizontal / FLIGHT.MAX_SPEED, 0, 1)
 		Pitch += Vibration * math.noise(c * 31, 4.4) * 1.4
 		Roll += Vibration * math.noise(c * 29, 8.8) * 1.4
+	end
+	-- // v21: en el agua la nave se balancea con el mar, se inclina al virar y cabecea al acelerar / frenar
+	if not Flying then
+		local SpeedRatio = math.clamp(math.abs(self.Speed) / MAX_SPEED, 0, 1)
+		local SwayTarget = 1 - (1 - BM.SWAY.UNDERWAY) * SpeedRatio
+		self.SwayGain += (SwayTarget - self.SwayGain) * (1 - math.exp(-dt / 0.8))
+		local S, f = self.SwayGain, BM.SWAY.FREQ
+		Pitch += S * BM.SWAY.PITCH * (math.noise(c * f, 21.1) * 1.4 + 0.4 * math.noise(c * f * 2.3, 4.2))
+		Roll += S * BM.SWAY.ROLL * (math.noise(c * f * 0.9, 15.5) * 1.4 + 0.6 * math.sin(c * f * 2 * math.pi))
+		Yaw += S * BM.SWAY.YAW * math.noise(c * f * 0.7, 33.3) * 1.4
+		Bob += S * BM.SWAY.BOB * math.noise(c * f * 1.2, 41.7) * 1.4
+		Roll -= self.SteerSmooth * BM.BANK * SpeedRatio -- // lado derecho abajo al virar a la derecha
+		Pitch += BM.SQUAT * math.clamp(self.AccelSmooth / ACCELERATION, -1, 1)
+	else
+		self.SwayGain = 0
 	end
 	local R = self.Rough
 	if R > 0.001 then
@@ -726,12 +747,24 @@ function BoatDrive.Step(self, dt: number, Throttle: number, Steer: number, Idle:
 	local Flat = YawCF.LookVector
 	self.Flat = Flat
 
+	-- // v21: sobre la ola gigante el motor no hace nada (solo se puede girar) y la ola arrastra la nave
+	local Time = workspace:GetServerTimeNow()
+	local GL = BM.GIANT_LOCK
+	local GiantFraction = Gerstner.ComputeGiantWave(self.Position, Time).Y / GIANT_HEIGHT
+	local LockTarget = RangeSmooth(GL.START, GL.FULL, GiantFraction)
+	self.GiantLock += (LockTarget - self.GiantLock) * (1 - math.exp(-dt / 0.3))
+	local Lock = self.GiantLock
+	if Lock > GL.CUTOFF then
+		Throttle = 0
+	end
+	self.SteerSmooth += (Steer - self.SteerSmooth) * (1 - math.exp(-dt / 0.6))
+
 	-- // Velocidad: motor, rozamiento y pendiente (la pendiente se mide el frame anterior)
 	local Speed = self.Speed
 	if Throttle == 1 then
 		Speed = math.min(Speed + ACCELERATION * dt, math.max(Speed, MAX_SPEED))
 	else
-		local Drag = DECELERATION * dt
+		local Drag = DECELERATION * dt * (1 + Lock * GL.EXTRA_DRAG)
 		if Speed > Drag then
 			Speed -= Drag
 		elseif Speed < -Drag then
@@ -754,8 +787,13 @@ function BoatDrive.Step(self, dt: number, Throttle: number, Steer: number, Idle:
 	Speed = math.clamp(Speed, -MAX_REVERSE_SPEED, MAX_SPEED)
 	self.Speed = Speed
 
-	-- // Avance horizontal
-	local Pos = self.Position + Flat * (Speed * dt)
+	self.AccelSmooth += (((Speed - self.PrevSpeed) / math.max(dt, 1e-3)) - self.AccelSmooth) * (1 - math.exp(-dt / 0.4))
+	self.PrevSpeed = Speed
+
+	-- // Avance horizontal + marea (corriente suave) + arrastre de la ola gigante
+	local Tide = BM.CURRENT_SPEED * (0.7 + 0.3 * math.sin(Time * 0.13))
+	local Drift = Gerstner.GIANT_CONFIG.Direction.Unit * (Tide + Gerstner.GIANT_CONFIG.Speed * GL.CARRY * Lock)
+	local Pos = self.Position + Flat * (Speed * dt) + Drift * dt
 	self.Position = Pos
 
 	RefreshZone(self, Pos, dt)
@@ -803,7 +841,13 @@ function BoatDrive.Step(self, dt: number, Throttle: number, Steer: number, Idle:
 		local Contact = if self.SoftLand then 1 else math.clamp(1 + Offset / AIR_MARGIN, 0, 1)
 		self.Contact = Contact
 
-		local Spring = HEAVE_FREQ * HEAVE_FREQ * Offset + 2 * HEAVE_DAMPING * HEAVE_FREQ * (SurfaceRate - self.VerticalSpeed)
+		-- // v21: respuesta blanda en calma (nave pesada) y rigida sobre la ola gigante (Rough 0 a 1)
+		local Stiff = self.Rough
+		local HeaveFreq = BM.HEAVE_FREQ + (BM.GIANT_HEAVE_FREQ - BM.HEAVE_FREQ) * Stiff
+		local HeaveDamping = BM.HEAVE_DAMPING + (BM.GIANT_HEAVE_DAMPING - BM.HEAVE_DAMPING) * Stiff
+		local TiltFreq = BM.TILT_FREQ + (BM.GIANT_TILT_FREQ - BM.TILT_FREQ) * Stiff
+		local TiltDamping = BM.TILT_DAMPING + (BM.GIANT_TILT_DAMPING - BM.TILT_DAMPING) * Stiff
+		local Spring = HeaveFreq * HeaveFreq * Offset + 2 * HeaveDamping * HeaveFreq * (SurfaceRate - self.VerticalSpeed)
 		local MaxAccel = MAX_BUOYANT_ACCEL * Gravity
 		Spring = math.clamp(Spring, -MaxAccel, MaxAccel)
 		local Fall = -Gravity - AIR_DRAG * self.VerticalSpeed
@@ -823,8 +867,8 @@ function BoatDrive.Step(self, dt: number, Throttle: number, Steer: number, Idle:
 		local RollTarget = math.clamp(math.atan(SlopeSide) * TILT_FOLLOW, -MAX_TILT, MAX_TILT)
 		local Air = 1 - Contact
 
-		local PitchAccel = TILT_FREQ * TILT_FREQ * (PitchTarget - self.Pitch) - 2 * TILT_DAMPING * TILT_FREQ * self.PitchRate
-		local RollAccel = TILT_FREQ * TILT_FREQ * (RollTarget - self.Roll) - 2 * TILT_DAMPING * TILT_FREQ * self.RollRate
+		local PitchAccel = TiltFreq * TiltFreq * (PitchTarget - self.Pitch) - 2 * TiltDamping * TiltFreq * self.PitchRate
+		local RollAccel = TiltFreq * TiltFreq * (RollTarget - self.Roll) - 2 * TiltDamping * TiltFreq * self.RollRate
 		PitchAccel = PitchAccel * Contact - AIR_TILT_DAMPING * self.PitchRate * Air
 		RollAccel = RollAccel * Contact - AIR_TILT_DAMPING * self.RollRate * Air
 
