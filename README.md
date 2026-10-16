@@ -4,13 +4,11 @@ This readme file mainly works as a list for improvements ideas, future sys integ
 Also include some issues which gotta be fixed.
 Currently working on Miller's planet, more places might be added, however, current objetive is developing a fully functional/interactive/bug free Miller's planet experience.
 
-=====================================================================================================================================
-Fix published game online sync, only driver sees the ship movement, others see it still, prob happens after respawning.
-Fix player fling when touching ship.
-Fix wrong teleport when leaving ship, make it possible to leave only when on water and standing still
+* Fix published game online sync, only driver sees the ship movement, others see it still, prob happens after respawning.
+* Fix player fling when touching ship.
+* Fix wrong teleport when leaving ship, make it possible to leave only when on water and standing still
 
-Search for every possible issue related to online sync (game published)
-=====================================================================================================================================
+*Search for every possible issue related to online sync (game published)
 
 Options for more realistic water [ask for recommendation]
 - Keep system and improve textures and physics
@@ -34,7 +32,6 @@ Visuals:
 * Add camera shaking/blur/etc depending on movement/waving.
 
 Sys:
-* Fix ship's max tilt to match wave inclination (BoatDrive > MAX_TILT).
 * Fix particle emitters attachment location (BoatWakes > func makeAtt).
 * Add multiple cameras attached to the ship for immersion.
 * Add enter driver/passenger seats prompt by the ship door:
