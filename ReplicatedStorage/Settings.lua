@@ -333,6 +333,25 @@ return {
 		},
 	},
 
+	-- // v20: jugador a pie (StarterPlayerScripts/PlayerFloor, Workspace/GiantWaveGuard)
+	PLAYER = {
+		FLOOR_DEPTH = 2.5, -- // studs por debajo del mar en calma a los que esta el piso invisible (el agua llega a las rodillas)
+		FLOOR_SIZE = 2048, -- // lado del piso invisible (se mueve con el jugador, asi que nunca se acaba)
+		FLOOR_SNAP = 128, -- // el piso se reposiciona en saltos de este tamano
+		KILL_ABOVE_ROOT = 5, -- // la ola gigante mata al jugador cuando su superficie supera su torso en estos studs
+		SWEEP_SPEED = 0.9, -- // fraccion de la velocidad de la ola con la que el agua arrastra al jugador muerto
+		FALL_RESCUE = 15, -- // si cae mas de esto por debajo del piso, el servidor lo devuelve al piso
+		CHECK_INTERVAL = 0.2, -- // segundos entre revisiones del servidor
+	},
+
+	-- // v20: vista bajo el agua (StarterPlayerScripts/UnderwaterView): el agua es opaca tambien desde abajo
+	UNDERWATER = {
+		ENABLED = true,
+		COLOR = Color3.fromRGB(20, 34, 40), -- // mismo tono que WAVE_COLORS.TROUGH
+		MARGIN = 0.2, -- // studs por debajo de la superficie a los que la camara cuenta como sumergida
+		FADE_TIME = 0.08, -- // segundos de transicion
+	},
+
 	-- // DEBUG
 	-- // Known issues thread: https://devforum.roblox.com/t/client-beta-in-experience-mesh-image-apis-now-available-in-published-experiences/3267293
 	DISABLE_CHUNK_CULLING = true, -- // Actualiza todos los chunks aunque no esten en pantalla (evita vertices congelados / estirados)

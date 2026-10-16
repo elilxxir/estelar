@@ -73,7 +73,6 @@ local function BindInput()
 		Enum.ContextActionPriority.High.Value,
 		Keys.Up,
 		Keys.Down,
-		Keys.NoJump,
 		Keys.RollLeft,
 		Keys.RollRight,
 		Keys.Toggle
