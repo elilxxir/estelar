@@ -11,10 +11,15 @@ vv GOTTA CHECK SERVER OUTPUT ON PUBLISHED GAME vv
 * Fix wrong teleport when leaving ship, make it possible to leave only when on water and standing still
 
 
-*Search for every possible issue related to online sync (game published)
+Search for every possible issue related to online sync (game published)
 ================================================
 
-Options for more realistic water [ask for recommendation]
+* Improve sea foam/movement/waves (lake-like):
+  * Add a few low-amplitude wave components to the existing Gerstner waves.
+  * Use seeded, deterministic variation so every client sees the same motion—avoid changing wave parameters randomly each frame, which can flicker or desync.
+  * CONSIDER -- Keep wavelengths large enough for the mesh to represent. The current vertex spacing is 48 studs, so very tiny waves won’t show as actual surface geometry; those are better suggested with a moving texture instead. This makes it better to use the native water for still sea.
+  * Because the ocean currently updates every vertex at full quality, adding waves does add computation. A few components should be manageable, but the result should be profiled in-game.}
+Alt options for more realistic water [ask for recommendation]
 - Keep system and improve textures and physics
 - Change still water for native studio water (?), plus keep big wave from original system
 
@@ -30,6 +35,7 @@ Sounds:
 * Footsteps
 
 Visuals:
+* Fix wakes trail texture not placing correctly, iterating.
 * Add ship lights/sounds/others effets as gas ejection, maintain atachment system.
 * Improve ship's trail/splash on sea.
 * Change ship's engine effects to match movie -low priority.
@@ -55,11 +61,6 @@ Sys:
   * Giant-wave wrap: the old "90 s" note no longer applies (Spacing / Speed is now 200 s). GetGiantWaveCenter jumps by exactly Spacing each cycle, but ComputeGiantWave reduces the distance modulo Spacing, so the height is continuous across the wrap and lookahead sampling (which just adds t) is too. The surge term is continuous as well.
   * TODO: HUD (mode, height, ceiling warning), gamepad bindings, flight sounds/effects (BoatWake already stops wake/splash while not in Water).
 * v21 boat motion (Settings > BOAT_MOTION): soft heave/tilt response in calm water (heavy, rocks), visual sway, bank when turning, nose up when accelerating, constant tide drift (CURRENT_SPEED). On the giant wave the engine is off (steering only), the wave carries the ship (GIANT_LOCK) and the response goes back to the stiff values. Surface-foam particles were removed from BoatWake: the wake is only the vertex foam (WakeTracker + ParallelWorker). Door = boarding prompt and exit point.
-* Improve sea foam/movement/waves (lake-like):
-  * Add a few low-amplitude wave components to the existing Gerstner waves.
-  * Use seeded, deterministic variation so every client sees the same motion—avoid changing wave parameters randomly each frame, which can flicker or desync.
-  * CONSIDER -- Keep wavelengths large enough for the mesh to represent. The current vertex spacing is 48 studs, so very tiny waves won’t show as actual surface geometry; those are better suggested with a moving texture instead.
-  * Because the ocean currently updates every vertex at full quality, adding waves does add computation. A few components should be manageable, but the result should be profiled in-game.
  
 Upcoming:
 * Add TARS.
