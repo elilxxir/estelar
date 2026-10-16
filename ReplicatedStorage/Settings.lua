@@ -187,11 +187,10 @@ return {
 			Toggle = Enum.KeyCode.F, -- // Despegar / aterrizar (en aterrizaje: cancelar y volver a subir)
 			Up = Enum.KeyCode.E, -- // v14: subir (propulsores verticales, gas hacia abajo)
 			Down = Enum.KeyCode.Q, -- // v14: bajar (gas hacia arriba)
-			PitchUp = Enum.KeyCode.Space, -- // v16: nariz arriba
-			PitchDown = Enum.KeyCode.LeftShift, -- // v16: nariz abajo
+			NoJump = Enum.KeyCode.Space, -- // v17: no hace nada en vuelo; solo se absorbe para que no saque al piloto del asiento
 			RollLeft = Enum.KeyCode.A, -- // v14: alabeo (inclina y vira)
 			RollRight = Enum.KeyCode.D,
-		}, -- // v16: W / S = propulsores principales (adelante / atras, Seat.Throttle). En modo agua W / A / S / D siguen siendo el volante del VehicleSeat
+		}, -- // v17: W = propulsores principales, S = freno (sin marcha atras en vuelo). En modo agua W / A / S / D siguen siendo el volante del VehicleSeat
 
 		-- // Alturas
 		MIN_CLEARANCE = 8, -- // Altura minima del punto de flotacion mas bajo sobre su ola (con la inclinacion del casco)
@@ -203,7 +202,7 @@ return {
 		TOUCHDOWN_HEIGHT = 6, -- // El servidor pasa de Landing a Water por debajo de esta altura. v16: antes 3; el piso (inclinacion, olas, mirada hacia adelante) deja a la nave justo por encima y nunca aterrizaba
 		TOUCHDOWN_STUCK_MARGIN = 6, -- // v16: si la nave se queda entre TOUCHDOWN_HEIGHT y TOUCHDOWN_HEIGHT + esto sin bajar...
 		TOUCHDOWN_STUCK_TIME = 1, -- // v16: ...durante tantos segundos, el servidor la da por aterrizada (pasa a Water)
-		MAX_ALTITUDE = 160, -- // Techo sobre el nivel del mar (PLANE_OFFSET.Y). Absoluto, NO relativo a la ola: la ola gigante no se puede sobrevolar
+		MAX_ALTITUDE = 200, -- // Techo sobre el nivel del mar (PLANE_OFFSET.Y). Absoluto, NO relativo a la ola: la ola gigante no se puede sobrevolar
 		SWEPT_TOLERANCE = 2, -- // Si la ola sube por encima del techo mas esto, la nave es arrastrada (vuelve a Water)
 
 		-- // Vertical (colectivo)
@@ -221,7 +220,7 @@ return {
 
 		-- // Horizontal (cabeceo / alabeo -> aceleracion)
 		MAX_SPEED = 140, -- // studs/s
-		HORIZ_ACCEL_MAX = 50, -- // v14 (antes 45): empuje de los propulsores principales (Espacio / Shift). studs/s^2 con la inclinacion maxima. La resistencia del aire es HORIZ_ACCEL_MAX / MAX_SPEED
+		HORIZ_ACCEL_MAX = 80, -- // v17 (antes 50): empuje de los propulsores principales (W). studs/s^2 con la inclinacion maxima. La resistencia del aire es HORIZ_ACCEL_MAX / MAX_SPEED
 		MAX_TILT = 0.4, -- // rad. Cabeceo / alabeo maximos (W / S, A / D)
 		TILT_FREQ = 5, -- // v14: rad/s. Respuesta del cabeceo / alabeo visual
 		TILT_DAMPING = 0.85,
@@ -239,7 +238,7 @@ return {
 		HOLD_BRAKE = 0.5, -- // v14: 1/s. Freno asistido con la palanca centrada (la computadora de vuelo frena sola, suave)
 		HOLD_BRAKE_FRACTION = 0.5, -- // v14: fraccion de HORIZ_ACCEL_MAX que puede usar ese freno
 		PITCH_CLIMB = 0.10, -- // v14: rad de cabeceo visual (nariz arriba al subir, abajo al bajar) a MAX_CLIMB_RATE
-		TILT_ACCEL = 16, -- // v14: studs/s^2 que acelera la inclinacion maxima (W / S, A / D). "Un poco": el empuje fuerte es Espacio / Shift
+		TILT_ACCEL = 28, -- // v14: studs/s^2 que acelera la inclinacion maxima (W / S, A / D). "Un poco": el empuje fuerte es Espacio / Shift
 		ROLL_TURN = 0.8, -- // v14: fraccion de TURN_RATE con el alabeo maximo (el alabeo hace virar; en vuelo no hay tecla de guinada)
 		NOSE_ALIGN = 0.35, -- // v14: 1/s. Gira la velocidad hacia donde apunta la nariz (vuelo hacia adelante). 0 = deriva libre. Se anula al usar Q / E
 		ACCEL_CAP = 1.4, -- // v14: tope de la aceleracion horizontal total, en veces HORIZ_ACCEL_MAX (debe ser < SERVER_TOLERANCE)
@@ -283,6 +282,8 @@ return {
 			CLIMB_REF = 22, -- // studs/s de velocidad vertical que cuentan como empuje completo
 			ACCEL_REF = 60, -- // studs/s^2 de aceleracion vertical que cuentan como empuje completo (pulso al arrancar / frenar)
 			DEADZONE = 0.08,
+			HOVER = 0.45, -- // v17: empuje minimo de las boquillas de abajo mientras la nave esta en el aire (siempre tiran gas)
+			LATERAL_SCALE = 0.8, -- // v17: fraccion de RATE de las boquillas laterales (A / D) a inclinacion maxima
 			RATE = 90, -- // particulas / s por boquilla con empuje completo
 		},
 

@@ -65,6 +65,12 @@ local SLOPE_GRAVITY = 0.6 -- // Fraccion de la gravedad que frena / acelera la n
 local SLOPE_DOWNHILL_SCALE = 0 -- // v16: fraccion de esa fuerza que SUMA velocidad al bajar una ola (0 = la ola solo frena, nunca acelera)
 local HULL_CLEARANCE = -1.5 -- // v16: studs que un punto de flotacion puede hundirse bajo su nivel de flotacion (colision con la ola)
 
+-- // v17: aterrizaje suave. Al pasar de vuelo a agua, la nave baja con velocidad proporcional a su altura (sin caida libre)
+local SOFT_LAND_GAIN = 1.2 -- // 1/s: velocidad de descenso = altura sobre el agua * esto
+local SOFT_LAND_MIN_FALL = 2 -- // studs/s: velocidad minima de descenso (para que llegue a tocar)
+local SOFT_LAND_MAX_FALL = 12 -- // studs/s: velocidad maxima de descenso
+local SOFT_LAND_TIMEOUT = 4 -- // s: tope del aterrizaje suave
+
 local RATE_PROBE = 0.1 -- // Segundos hacia el futuro para medir la velocidad vertical de la ola
 local ZONE_REFRESH = 3 -- // Segundos entre busquedas de zona
 
@@ -171,7 +177,9 @@ function BoatDrive.new(Boat: Model, Seat: VehicleSeat)
 		Swept = false, -- // true cuando la ola alcanzo el techo y la nave volvio a Water. El cliente lo borra
 		Collective = 0,
 		-- // v14: palanca virtual (-1..1). Las teclas son digitales; la nave responde a la palanca, no a la tecla
-		StickThrottle = 0, -- // Espacio / Shift (cabeceo)
+		StickBrake = 0, -- // v17: S (freno; en vuelo no hay marcha atras)
+		SoftLand = false, -- // v17: aterrizaje suave activo (Water recien llegado de vuelo)
+		SoftLandTime = 0,
 		StickRoll = 0, -- // A / D (alabeo)
 		StickBoost = 0, -- // W / S (propulsores principales)
 		StickCollective = 0,
@@ -308,11 +316,12 @@ function BoatDrive.SetMode(self, Mode: string)
 		self.SpeedScale, self.TiltScale, self.Overload = 1, 1, 0
 		self.YawRate = 0
 		self.Swept = false
-		self.StickThrottle, self.StickRoll, self.StickBoost, self.StickCollective = 0, 0, 0, 0 -- // v14
+		self.StickBrake, self.StickRoll, self.StickBoost, self.StickCollective = 0, 0, 0, 0 -- // v14
 	elseif Mode == 'Water' then
 		self.Speed = math.clamp(self.Vel:Dot(self.Flat), -MAX_REVERSE_SPEED, MAX_SPEED)
 		self.Vel = Vector3.zero
 		self.Contact = nil
+		self.SoftLand, self.SoftLandTime = true, 0 -- // v17: baja suave hasta tocar el agua (si ya esta bajo la ola, se apaga solo)
 	end
 end
 
@@ -321,23 +330,24 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 	local Landing = Mode == 'Landing'
 	local Takeoff = Mode == 'Takeoff'
 	-- // v14: las ordenes (teclas) pasan por la palanca virtual antes de usarse
-	-- // v16: W / S = propulsores principales (Throttle del asiento), Espacio / Shift = cabeceo (nariz arriba / abajo),
-	-- // A / D = alabeo, Q / E = subir / bajar (Collective). En vuelo no hay tecla de guinada: el alabeo hace virar la nave.
+	-- // v17: W = propulsores principales (solo adelante), S = freno (no hay marcha atras en vuelo), A / D = alabeo,
+	-- // Q / E = subir / bajar (Collective). En vuelo no hay tecla de guinada: el alabeo hace virar la nave.
 	local RollInput = if Input then Input.Roll or 0 else 0
-	local PitchInput = if Input then Input.Pitch or 0 else 0
-	self.StickThrottle = Stick(self.StickThrottle, PitchInput, dt, FLIGHT.STICK_RISE, FLIGHT.STICK_RETURN) -- // palanca de cabeceo
+	self.StickBrake = Stick(self.StickBrake, math.max(-Throttle, 0), dt, FLIGHT.STICK_RISE, FLIGHT.STICK_RETURN)
 	self.StickRoll = Stick(self.StickRoll, RollInput, dt, FLIGHT.STICK_RISE, FLIGHT.STICK_RETURN)
-	self.StickBoost = Stick(self.StickBoost, Throttle, dt, FLIGHT.STICK_RISE, FLIGHT.STICK_RETURN) -- // W / S: propulsores
+	self.StickBoost = Stick(self.StickBoost, math.max(Throttle, 0), dt, FLIGHT.STICK_RISE, FLIGHT.STICK_RETURN) -- // W: propulsores
 	self.StickCollective = Stick(self.StickCollective, if Input then Input.Collective or 0 else 0, dt, FLIGHT.COLLECTIVE_RISE, FLIGHT.COLLECTIVE_RETURN)
-	local PitchStick = self.StickThrottle
 	local Roll = self.StickRoll
 	local Boost = self.StickBoost
+	local Brake = self.StickBrake
 	local Collective = self.StickCollective
 	self.Collective = Collective
 
 	-- // 1. Guinada (rumbo). v14: sale del alabeo (virar inclinada, como un avion): lado derecho abajo (roll < 0) = vira a la derecha.
 	-- // Sin autoridad (cerca del agua) no vira.
-	local YawAuthority = Smoothstep01((self.Height - FLIGHT.GATE_HEIGHT) / FLIGHT.GATE_BLEND)
+	-- // v17: en Flight la autoridad es completa (antes se perdia por debajo de GATE_HEIGHT y la nave quedaba pegada cerca del mar;
+	-- // el piso duro y la mirada hacia adelante ya la protegen). La compuerta solo rige en Takeoff / Landing.
+	local YawAuthority = if Mode == 'Flight' then 1 else Smoothstep01((self.Height - FLIGHT.GATE_HEIGHT) / FLIGHT.GATE_BLEND)
 	local YawRateTarget = math.clamp(self.Roll / FLIGHT.MAX_TILT, -1, 1) * FLIGHT.TURN_RATE * FLIGHT.ROLL_TURN * YawAuthority
 	self.YawRate += (YawRateTarget - self.YawRate) * (1 - math.exp(-dt / FLIGHT.YAW_SMOOTH))
 	self.Yaw += self.YawRate * dt
@@ -347,7 +357,7 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 
 	-- // 2. Autoridad horizontal: 0 por debajo de GATE_HEIGHT, 1 a GATE_HEIGHT + GATE_BLEND (con la altura del frame anterior).
 	-- // Al aterrizar ademas baja la inclinacion y el limite de velocidad, mas cuanto mas cerca del agua.
-	local Authority = Smoothstep01((self.Height - FLIGHT.GATE_HEIGHT) / FLIGHT.GATE_BLEND)
+	local Authority = if Mode == 'Flight' then 1 else Smoothstep01((self.Height - FLIGHT.GATE_HEIGHT) / FLIGHT.GATE_BLEND)
 	local LandTilt, LandSpeed = 1, 1
 	if Landing then
 		LandTilt = FLIGHT.LAND_TILT_SCALE
@@ -374,12 +384,19 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 		local Limit = FLIGHT.MAX_CLIMB_RATE * FLIGHT.LOOK_RATE_FRACTION
 		local Rotation = YawCF * CFrame.fromEulerAnglesXYZ(self.Pitch, 0, self.Roll)
 		local Overload, FloorMax = 0, -math.huge
+		local CeilLook = Ceiling()
 		for _, Tau in FLIGHT.LOOKAHEAD_TIMES do
 			local Heights, Dy = SampleHull(self, self.Position, Rotation, Tau, Projected * Tau)
 			if Heights ~= nil then
 				local Required = FloorFrom(self, Heights, Dy, Clearance)
-				FloorMax = math.max(FloorMax, Required)
-				Overload = math.max(Overload, (Required - self.Position.Y) / Tau / Limit)
+				if Required > CeilLook then
+					-- // v17: la ola (ola gigante) supera el techo: no se puede subir mas, asi que no tiene sentido frenar la nave
+					-- // (antes quedaba al 15% de velocidad, "pegada", justo cuando mas hay que alejarse). Solo sube hasta el techo.
+					FloorMax = math.max(FloorMax, CeilLook)
+				else
+					FloorMax = math.max(FloorMax, Required)
+					Overload = math.max(Overload, (Required - self.Position.Y) / Tau / Limit)
+				end
 			end
 		end
 		self.LookFloor, self.Overload = FloorMax, Overload
@@ -430,9 +447,9 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 		return Brake + Hold
 	end
 
-	-- // Inclinacion pedida: W / S -> cabeceo, A / D -> alabeo. El cabeceo suma el visual al subir / bajar.
+	-- // Inclinacion pedida: A / D -> alabeo. El cabeceo es solo visual (nariz arriba / abajo al subir / bajar).
 	local ClimbRatio = math.clamp(self.VerticalSpeed / FLIGHT.MAX_CLIMB_RATE, -1, 1)
-	local PitchCommand = PitchStick * FLIGHT.MAX_TILT * TiltAuthority + FLIGHT.PITCH_CLIMB * ClimbRatio * self.TiltScale
+	local PitchCommand = FLIGHT.PITCH_CLIMB * ClimbRatio * self.TiltScale
 	local RollCommand = -Roll * FLIGHT.MAX_TILT * TiltAuthority * Room(Roll, Vr)
 	PitchCommand = math.clamp(PitchCommand, -FLIGHT.MAX_TILT, FLIGHT.MAX_TILT)
 	RollCommand = math.clamp(RollCommand, -FLIGHT.MAX_TILT, FLIGHT.MAX_TILT)
@@ -447,8 +464,10 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 	-- // Aceleracion: un poco por la inclinacion real del casco + propulsores principales (Espacio adelante, Shift atras)
 	local TiltForward = 0 -- // v16: el cabeceo ya no acelera, solo W / S (Push)
 	local TiltRight = -FLIGHT.TILT_ACCEL * (self.Roll / FLIGHT.MAX_TILT) * Authority
-	local Push = Boost * FLIGHT.HORIZ_ACCEL_MAX * TiltAuthority * Room(Boost, Vf) -- // v15: era ThrustAuthority (sin definir)
-	local AccelForward = TiltForward + Push + Brakes(Vf, math.abs(Boost))
+	local Push = Boost * FLIGHT.HORIZ_ACCEL_MAX * TiltAuthority * Room(Boost, Vf)
+	-- // v17: S frena hasta detenerse (proporcional a la velocidad, nunca invierte el sentido)
+	local StopBrake = -math.min(math.max(Vf, 0) * FLIGHT.BRAKE_GAIN, FLIGHT.HORIZ_ACCEL_MAX * FLIGHT.BRAKE_FRACTION) * Brake * Authority
+	local AccelForward = TiltForward + Push + StopBrake + Brakes(Vf, math.abs(Boost) + Brake)
 	local AccelRight = TiltRight + Brakes(Vr, math.abs(Roll))
 
 	local Drag = FLIGHT.HORIZ_ACCEL_MAX / FLIGHT.MAX_SPEED
@@ -467,6 +486,10 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 		HorizAccel = HorizAccel.Unit * AccelMax
 	end
 	local Vel = self.Vel + HorizAccel * dt
+	local Forward = Vel:Dot(Flat)
+	if Forward < 0 then
+		Vel -= Flat * Forward -- // v17: sin marcha atras en vuelo
+	end
 	local HardSpeed = FLIGHT.MAX_SPEED * 1.05
 	if Vel.Magnitude > HardSpeed then
 		Vel = Vel.Unit * HardSpeed
@@ -498,13 +521,6 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 		Rate = FLIGHT.MAX_CLIMB_RATE * Collective -- // v14: proporcional a la palanca (antes todo o nada)
 	elseif Collective < 0 then
 		Rate = FLIGHT.MAX_DESCENT_RATE * Collective
-	end
-	-- // v16: nariz arriba / abajo con empuje hacia adelante hace subir / bajar la nave (componente vertical del empuje).
-	-- // Se usa el cabeceo ordenado (no el visual) para que PITCH_CLIMB no cree un bucle de subida.
-	if Mode == 'Flight' then
-		local PitchAngle = PitchStick * FLIGHT.MAX_TILT * TiltAuthority
-		Rate += math.tan(PitchAngle) * math.max(Vf, 0)
-		Rate = math.clamp(Rate, -FLIGHT.MAX_DESCENT_RATE, FLIGHT.MAX_CLIMB_RATE)
 	end
 	local Alt = math.clamp(self.AltTarget + Rate * dt, Pos.Y - FLIGHT.ALT_LEAD, Pos.Y + FLIGHT.ALT_LEAD)
 	local SoftFloor = self.FloorTarget
@@ -635,8 +651,8 @@ end
 
 -- // Avanza la nave dt segundos. Throttle y Steer son los del VehicleSeat (-1, 0 o 1).
 -- // Idle = true para la nave vacia: no se desliza por las pendientes.
--- // Input (opcional, solo vuelo): { Roll = -1..1 (A / D), Pitch = -1..1 (Espacio nariz arriba / Shift nariz abajo), Collective = -1..1 (Q / E subir / bajar) }. W / S entran por Throttle.
-function BoatDrive.Step(self, dt: number, Throttle: number, Steer: number, Idle: boolean?, Input: { Roll: number?, Pitch: number?, Collective: number? }?)
+-- // Input (opcional, solo vuelo): { Roll = -1..1 (A / D), Collective = -1..1 (Q / E subir / bajar) }. W / S entran por Throttle.
+function BoatDrive.Step(self, dt: number, Throttle: number, Steer: number, Idle: boolean?, Input: { Roll: number?, Collective: number? }?)
 	dt = math.min(dt, 0.05)
 	if self.Mode ~= 'Water' then
 		StepFlight(self, dt, Throttle, Steer, Input)
@@ -721,7 +737,14 @@ function BoatDrive.Step(self, dt: number, Throttle: number, Steer: number, Idle:
 		end
 		local Target = math.max(SurfaceHeight + self.BaseHeight, FloorFrom(self, Now, Dy, self.FloorSlack))
 		local Offset = Target - Pos.Y -- // > 0: la nave esta por debajo de su altura de flotacion
-		local Contact = math.clamp(1 + Offset / AIR_MARGIN, 0, 1)
+		if self.SoftLand then
+			-- // v17: recien llegada de vuelo: baja suave hasta tocar el agua (se apaga al tocarla o por tiempo)
+			self.SoftLandTime += dt
+			if Offset > -0.3 or self.SoftLandTime > SOFT_LAND_TIMEOUT then
+				self.SoftLand = false
+			end
+		end
+		local Contact = if self.SoftLand then 1 else math.clamp(1 + Offset / AIR_MARGIN, 0, 1)
 		self.Contact = Contact
 
 		local Spring = HEAVE_FREQ * HEAVE_FREQ * Offset + 2 * HEAVE_DAMPING * HEAVE_FREQ * (SurfaceRate - self.VerticalSpeed)
@@ -731,6 +754,11 @@ function BoatDrive.Step(self, dt: number, Throttle: number, Steer: number, Idle:
 		local VerticalAccel = Spring * Contact + Fall * (1 - Contact)
 
 		self.VerticalSpeed += VerticalAccel * dt
+		if self.SoftLand then
+			-- // Velocidad de descenso (respecto a la ola) proporcional a la altura: frena al acercarse, sin golpe
+			local MaxFall = math.clamp(-Offset * SOFT_LAND_GAIN, SOFT_LAND_MIN_FALL, SOFT_LAND_MAX_FALL)
+			self.VerticalSpeed = math.max(self.VerticalSpeed, SurfaceRate - MaxFall)
+		end
 		Pos = Vector3.new(Pos.X, Pos.Y + self.VerticalSpeed * dt, Pos.Z)
 		self.Position = Pos
 

@@ -1,7 +1,8 @@
 -- LocalScript en StarterPlayer > StarterPlayerScripts
 -- Efectos de la nave en vuelo (v14). Todo se calcula en cada cliente a partir del movimiento real de la nave, asi que
 -- los demas jugadores tambien lo ven y lo oyen:
---   * Propulsores verticales pequenos (eyeccion de gas): al subir sale gas por abajo, al bajar por arriba
+--   * Propulsores verticales pequenos (eyeccion de gas): en el aire siempre sale gas por abajo (mas al subir); al bajar sale tambien por arriba
+--   * v17: propulsores laterales: con A / D sale gas por el lado contrario al del giro
 --   * Sonido de propulsores principales en vuelo (loop), sonido de los propulsores verticales (loop) y soplido al arrancar
 --   * Vibracion de camara del piloto
 -- Los IDs de sonido y los valores se editan en Settings.FLIGHT (GAS, SOUNDS, SHAKE).
@@ -118,12 +119,24 @@ local function setupBoat(boat)
 		table.insert(upNozzles, makeNozzle(makeAtt(main, point.WorldPosition, up, 'GasUp' .. i)))
 	end
 
+	-- // v17: boquillas laterales. Al virar a la derecha (D) sale gas por la izquierda, y al reves (A)
+	local right = seat.CFrame.RightVector
+	local leftNozzles, rightNozzles = {}, {}
+	for i, point in points do
+		if (point.WorldPosition - main.Position):Dot(right) < 0 then
+			table.insert(leftNozzles, makeNozzle(makeAtt(main, point.WorldPosition, -right, 'GasLeft' .. i)))
+		else
+			table.insert(rightNozzles, makeNozzle(makeAtt(main, point.WorldPosition, right, 'GasRight' .. i)))
+		end
+	end
+
 	local propulsor = boat:FindFirstChild('Propulsor')
 	local engineParent = if propulsor and propulsor:IsA('BasePart') then propulsor else main
 
 	states[boat] = {
 		boat = boat, main = main, seat = seat,
 		downNozzles = downNozzles, upNozzles = upNozzles,
+		leftNozzles = leftNozzles, rightNozzles = rightNozzles, lateral = 0,
 		ThrusterLoop = makeSound(SOUNDS.ThrusterLoop, engineParent, 'FlightThruster', true),
 		GasLoop = makeSound(SOUNDS.GasLoop, main, 'GasThrusters', true),
 		GasBurst = makeSound(SOUNDS.GasBurst, main, 'GasBurst', false),
@@ -178,7 +191,23 @@ local function update(s, dt: number)
 	local PreviousAbs = math.abs(s.demand)
 	s.demand += (Target - s.demand) * (1 - math.exp(-dt / 0.12))
 	local Demand = s.demand
-	local Climb, Descend = math.max(Demand, 0), math.max(-Demand, 0)
+	-- // v17: en el aire las boquillas de abajo siempre tiran gas (GAS.HOVER), y mas al subir
+	local Hover = GAS.HOVER * s.flightGain
+	local Climb, Descend = math.max(Demand, Hover), math.max(-Demand, 0)
+
+	-- // v17: gas lateral segun el alabeo del casco (A / D). Bank > 0 = alabeo a la derecha (D)
+	local Bank = -s.seat.CFrame.RightVector.Y / math.sin(FLIGHT.MAX_TILT)
+	local LateralTarget = if Flying and math.abs(Bank) > GAS.DEADZONE * 2 then math.clamp(Bank, -1, 1) else 0
+	s.lateral += (LateralTarget - s.lateral) * (1 - math.exp(-dt / 0.12))
+	local Lateral = s.lateral
+	for _, n in s.leftNozzles do
+		n.puff.Rate = GAS.RATE * GAS.LATERAL_SCALE * math.max(Lateral, 0)
+		n.core.Rate = GAS.RATE * GAS.LATERAL_SCALE * 0.6 * math.max(Lateral, 0)
+	end
+	for _, n in s.rightNozzles do
+		n.puff.Rate = GAS.RATE * GAS.LATERAL_SCALE * math.max(-Lateral, 0)
+		n.core.Rate = GAS.RATE * GAS.LATERAL_SCALE * 0.6 * math.max(-Lateral, 0)
+	end
 
 	-- // Gas: sube = boquillas de abajo, baja = boquillas de arriba
 	for _, n in s.downNozzles do
@@ -204,7 +233,7 @@ local function update(s, dt: number)
 		s.ThrusterLoop.PlaybackSpeed = 0.8 + 0.6 * s.intensity
 	end
 	if s.GasLoop then
-		local Amount = math.abs(Demand)
+		local Amount = math.max(math.abs(Demand), Hover, math.abs(Lateral))
 		s.GasLoop.Volume = SOUNDS.GAS_VOLUME * Amount
 		s.GasLoop.PlaybackSpeed = 0.9 + 0.3 * Amount
 	end

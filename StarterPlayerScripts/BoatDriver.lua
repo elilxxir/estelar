@@ -1,9 +1,9 @@
 -- LocalScript dentro de StarterPlayer >> StarterPlayerScripts
 -- Mueve la nave desde el cliente del piloto mientras esta sentado (sin fisica: ver Serial/BoatDrive).
 --
--- Vuelo (ver Settings.FLIGHT.KEYS): F despega / aterriza. En vuelo W / S = propulsores principales (adelante / atras),
--- Espacio / Shift izquierdo = cabeceo (nariz arriba / abajo), A / D = alabeo (inclina y vira), Q / E = subir / bajar
--- (propulsores verticales). Espacio nunca saca al piloto del asiento.
+-- Vuelo (ver Settings.FLIGHT.KEYS): F despega / aterriza. En vuelo W = propulsores principales, S = freno (sin marcha atras),
+-- A / D = alabeo (inclina y vira), Q / E = subir / bajar (propulsores verticales). Espacio no hace nada: solo se absorbe
+-- para que nunca saque al piloto del asiento.
 -- El servidor concede los modos (atributo FlightMode del modelo) y valida el vuelo: este script solo los copia.
 
 --!nonstrict
@@ -59,7 +59,7 @@ local function OnAction(_, State: Enum.UserInputState, Input: InputObject)
 		Held[Key] = nil
 	end
 	-- // v14: Espacio nunca debe hacer saltar al piloto fuera del asiento (ni en agua ni en vuelo)
-	if Key == Keys.PitchUp then
+	if Key == Keys.NoJump then
 		return Enum.ContextActionResult.Sink
 	end
 	return Enum.ContextActionResult.Pass
@@ -73,8 +73,7 @@ local function BindInput()
 		Enum.ContextActionPriority.High.Value,
 		Keys.Up,
 		Keys.Down,
-		Keys.PitchUp,
-		Keys.PitchDown,
+		Keys.NoJump,
 		Keys.RollLeft,
 		Keys.RollRight,
 		Keys.Toggle
@@ -100,7 +99,6 @@ local function Step(dt: number)
 
 	local Input = {
 		Roll = (if Held[Keys.RollRight] then 1 else 0) - (if Held[Keys.RollLeft] then 1 else 0),
-		Pitch = (if Held[Keys.PitchUp] then 1 else 0) - (if Held[Keys.PitchDown] then 1 else 0),
 		Collective = (if Held[Keys.Up] then 1 else 0) - (if Held[Keys.Down] then 1 else 0),
 	}
 	-- // En agua A / D son el volante (Seat.Steer); en vuelo BoatDrive ignora Steer y usa el alabeo (Input.Roll)
