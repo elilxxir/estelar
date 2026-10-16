@@ -18,6 +18,7 @@ export type VertexKey = {
 	AlphaTransparency: number,
 	CurrentColor: Color3,
 	QUALITY_LEVEL: number,
+	Foam: number?,
 }
 export type ChunkKey = {
 	Rendering: boolean,

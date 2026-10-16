@@ -273,6 +273,25 @@ return {
 		REQUEST_COOLDOWN = 0.5, -- // s entre peticiones del cliente
 		ALLOW_IN_WHIRLPOOL = false,
 
+		-- // v19: movimiento SOLO visual de la nave (no entra en la fisica). Suspension en el aire y sacudidas en la ola gigante.
+		HOVER_MOTION = {
+			CALM_SPEED = 25, -- // studs/s: por encima de esta velocidad horizontal no hay balanceo de suspension
+			PITCH = 0.03, -- // rad
+			ROLL = 0.04, -- // rad
+			YAW = 0.012, -- // rad
+			BOB = 0.35, -- // studs de sube y baja
+			FREQ = 0.45, -- // Hz aprox. del balanceo
+			VIBRATION = 0.004, -- // rad de vibracion de los motores a velocidad maxima
+		},
+		WAVE_JOLT = {
+			START = 0.03, -- // fraccion de la altura de la ola gigante (0 a 1) donde empiezan las sacudidas
+			FULL = 0.3, -- // ...y donde llegan al maximo
+			PITCH = 0.06, -- // rad
+			ROLL = 0.08, -- // rad
+			BOB = 0.6, -- // studs
+			FREQ = 5.5, -- // Hz aprox. (bruscas: la señal es puntiaguda)
+		},
+
 		-- // v14: estela y salpicaduras en vuelo. Solo hay estela si la nave vuela cerca del agua.
 		WAKE_FULL_HEIGHT = 6, -- // studs sobre el agua (casco) hasta los que la estela es completa
 		WAKE_HEIGHT = 16, -- // studs sobre el agua a partir de los que ya no hay estela (entre ambas se desvanece)
@@ -284,6 +303,8 @@ return {
 			DEADZONE = 0.08,
 			HOVER = 0.45, -- // v17: empuje minimo de las boquillas de abajo mientras la nave esta en el aire (siempre tiran gas)
 			LATERAL_SCALE = 0.8, -- // v17: fraccion de RATE de las boquillas laterales (A / D) a inclinacion maxima
+			STABILIZE = 0.6, -- // v19: fuerza del gas de estabilizacion al estar casi quieto en el aire (0 = sin)
+			LIGHT = 1.5, -- // v19: brillo de la luz de cada boquilla al disparar (0 = sin luces)
 			RATE = 90, -- // particulas / s por boquilla con empuje completo
 		},
 
@@ -305,6 +326,7 @@ return {
 			BASE = 0.35, -- // vibracion constante con los motores encendidos (0..1 de la intensidad maxima)
 			SPEED = 0.45, -- // se suma a velocidad completa
 			GAS = 0.5, -- // se suma con propulsores verticales a tope
+			WAVE = 0.55, -- // v19: vibracion de camara al estar sobre la ola gigante (0..1)
 			ROT = 0.0045, -- // rad de giro maximo
 			POS = 0.09, -- // studs de desplazamiento maximo (Humanoid.CameraOffset)
 			FREQ = 26, -- // Hz aproximados del temblor

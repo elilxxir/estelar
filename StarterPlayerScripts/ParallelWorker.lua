@@ -68,6 +68,26 @@ Actor:BindToMessage('WakeUpdate', function(flat)
 	end
 end)
 
+-- // v19: la estela se pinta en los vertices del mar, que estan a 12 / 24 / 48 studs segun la distancia al centro del plano
+-- // (Settings.Subdivisions). Una espuma mas fina que el espaciado cae entre vertices y parpadea al avanzar (cambian el nivel
+-- // de detalle y el plano se reposiciona), asi que el radio minimo de la espuma es proporcional al espaciado local y
+-- // la espuma de cada vertice se suaviza en el tiempo.
+local VERTEX_PADDING = _settings.GRID_SETTINGS.Padding
+local VERTEX_SUBDIVISIONS = _settings.Subdivisions
+local FOAM_MIN_RADIUS = 1.6 -- // radio minimo = espaciado local * esto
+local FOAM_RISE, FOAM_FALL = 18, 5 -- // 1/s: rapidez con que la espuma de un vertice sube / baja
+
+local function VertexSpacing(x: number, z: number): number
+	local Distance = math.max(math.abs(x), math.abs(z))
+	local Spacing = VERTEX_PADDING
+	for _, Radius in VERTEX_SUBDIVISIONS do
+		if Distance <= Radius then
+			Spacing /= 2
+		end
+	end
+	return Spacing
+end
+
 local FADE_START, FADE_END = 450, 800 -- distancia al centro del plano donde la espuma se desvanece (evita el corte con los planos secundarios)
 
 local function EdgeFade(x: number, z: number): number
@@ -81,7 +101,7 @@ local function EdgeFade(x: number, z: number): number
 	return 1 - u * u * (3 - 2 * u)
 end
 
-local function GetFoam(x: number, z: number, list: { number }, n: number): number
+local function GetFoam(x: number, z: number, list: { number }, n: number, minRadius: number?): number
 	local foam = 0
 	for i = 1, n, 6 do
 		local ax, az = list[i], list[i + 1]
@@ -93,7 +113,7 @@ local function GetFoam(x: number, z: number, list: { number }, n: number): numbe
 			u = math.clamp((apx * abx + apz * abz) / len2, 0, 1)
 		end
 		local dx, dz = apx - abx * u, apz - abz * u
-		local r = list[i + 4]
+		local r = math.max(list[i + 4], minRadius or 0)
 		local d2 = dx * dx + dz * dz
 		if d2 < r * r then
 			local f = (1 - math.sqrt(d2) / r) * list[i + 5]
@@ -399,8 +419,17 @@ Actor:BindToMessage('Compute', function(waves, Plane: MeshPart, EditableMesh: Ed
 					UpdateSecondary = false
 				end
 				local HighColor = Helper.GetVertexColor(Transform.Y, VortexOffsetY, ShoreTransparency)
+				local FoamTarget = 0
 				if cwn > 0 then
-					local Foam = GetFoam(SeaPosition.X, SeaPosition.Z, cw, cwn) * EdgeFade(vertex.X, vertex.Z)
+					FoamTarget = GetFoam(SeaPosition.X, SeaPosition.Z, cw, cwn, VertexSpacing(vertex.X, vertex.Z) * FOAM_MIN_RADIUS) * EdgeFade(vertex.X, vertex.Z)
+				end
+				local Foam = Info.Foam or 0
+				if Foam > 0 or FoamTarget > 0 then
+					Foam += (FoamTarget - Foam) * math.min(dt * (if FoamTarget > Foam then FOAM_RISE else FOAM_FALL), 1)
+					if Foam < 0.003 then
+						Foam = 0
+					end
+					Info.Foam = Foam
 					if Foam > 0 then
 						HighColor = HighColor:Lerp(FOAM_COLOR, Foam * FOAM_MAX)
 					end

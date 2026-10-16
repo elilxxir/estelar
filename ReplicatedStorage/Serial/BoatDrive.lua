@@ -35,6 +35,7 @@
 local BoatManager = require(script.Parent.BoatManager)
 local ZoneManager = require(script.Parent.ZoneManager)
 local Settings = require(script.Parent.Parent.Settings)
+local Gerstner = require(script.Parent.Parent)
 
 local FLIGHT = Settings.FLIGHT
 local SEA_LEVEL = Settings.GRID_SETTINGS.PLANE_OFFSET.Y -- // Y del mar en calma (las alturas de HeightLookup ya lo incluyen)
@@ -180,6 +181,8 @@ function BoatDrive.new(Boat: Model, Seat: VehicleSeat)
 		StickBrake = 0, -- // v17: S (freno; en vuelo no hay marcha atras)
 		SoftLand = false, -- // v17: aterrizaje suave activo (Water recien llegado de vuelo)
 		SoftLandTime = 0,
+		HoverGain = 0, -- // v19: suspension visual en el aire (0 a 1)
+		Rough = 0, -- // v19: sacudidas visuales en la ola gigante (0 a 1)
 		StickRoll = 0, -- // A / D (alabeo)
 		StickBoost = 0, -- // W / S (propulsores principales)
 		StickCollective = 0,
@@ -298,6 +301,58 @@ local function FloorFrom(self, Heights: { number }, Dy: { number }, Clearance: n
 		end
 	end
 	return Floor
+end
+
+-- // v19: movimiento SOLO visual: se aplica al CFrame final, no a la fisica (Pitch / Roll / Position / pisos no lo ven).
+-- // * Suspension: casi quieta en el aire, la nave se balancea y sube / baja muy poco, como si los gases la estabilizaran.
+-- // * Motores: vibracion fina que crece con la velocidad.
+-- // * Ola gigante: sacudidas bruscas segun lo alta que sea la ola bajo la nave.
+local HOVER = FLIGHT.HOVER_MOTION
+local JOLT = FLIGHT.WAVE_JOLT
+local GIANT_HEIGHT = Gerstner.GIANT_CONFIG.Height
+
+local function RangeSmooth(a: number, b: number, x: number): number
+	local u = math.clamp((x - a) / (b - a), 0, 1)
+	return u * u * (3 - 2 * u)
+end
+
+local function VisualMotion(self, Pos: Vector3, dt: number): (Vector3, CFrame)
+	local Flying = self.Mode ~= 'Water'
+	local Horizontal = if Flying then Vector3.new(self.Vel.X, 0, self.Vel.Z).Magnitude else math.abs(self.Speed)
+
+	local HoverTarget = if Flying then 1 - math.clamp(Horizontal / HOVER.CALM_SPEED, 0, 1) else 0
+	self.HoverGain += (HoverTarget - self.HoverGain) * (1 - math.exp(-dt / 0.6))
+
+	local Fraction = Gerstner.ComputeGiantWave(Pos, workspace:GetServerTimeNow()).Y / GIANT_HEIGHT
+	self.Rough += (RangeSmooth(JOLT.START, JOLT.FULL, Fraction) - self.Rough) * (1 - math.exp(-dt / 0.35))
+
+	local c = os.clock()
+	local Pitch, Roll, Yaw, Bob = 0, 0, 0, 0
+	local H = self.HoverGain
+	if H > 0.001 then
+		local f = HOVER.FREQ
+		Pitch += H * HOVER.PITCH * (math.noise(c * f, 1.3) * 1.4 + 0.5 * math.noise(c * f * 3.1, 7.7))
+		Roll += H * HOVER.ROLL * (math.noise(c * f, 5.9) * 1.4 + 0.5 * math.noise(c * f * 2.7, 3.3))
+		Yaw += H * HOVER.YAW * math.noise(c * f * 0.8, 9.1) * 1.4
+		Bob += H * HOVER.BOB * math.noise(c * f * 1.3, 2.2) * 1.4
+	end
+	if Flying then
+		local Vibration = HOVER.VIBRATION * math.clamp(Horizontal / FLIGHT.MAX_SPEED, 0, 1)
+		Pitch += Vibration * math.noise(c * 31, 4.4) * 1.4
+		Roll += Vibration * math.noise(c * 29, 8.8) * 1.4
+	end
+	local R = self.Rough
+	if R > 0.001 then
+		-- // Señal puntiaguda (n * |n|): reposo con golpes secos en vez de un vaiven suave
+		local function Spike(Seed: number): number
+			local n = math.noise(c * JOLT.FREQ, Seed) * 1.4
+			return n * math.abs(n) * 2
+		end
+		Pitch += R * JOLT.PITCH * Spike(10.1)
+		Roll += R * JOLT.ROLL * Spike(20.2)
+		Bob += R * JOLT.BOB * Spike(30.3)
+	end
+	return Vector3.new(0, Bob, 0), CFrame.Angles(Pitch, Yaw, Roll)
 end
 
 -- // Cambia de modo conservando el movimiento. El servidor decide el modo; el cliente lo copia.
@@ -556,7 +611,8 @@ local function StepFlight(self, dt: number, Throttle: number, Steer: number, Inp
 	if Surface ~= nil then
 		self.Height = Y - Surface - self.BaseHeight
 	end
-	self.CFrame = CFrame.new(Pos) * Rotation
+	local VisualPos, VisualRot = VisualMotion(self, Pos, dt)
+	self.CFrame = CFrame.new(Pos + VisualPos) * Rotation * VisualRot
 
 	if Swept then
 		self.Swept = true
@@ -790,7 +846,8 @@ function BoatDrive.Step(self, dt: number, Throttle: number, Steer: number, Idle:
 		end
 	end
 
-	self.CFrame = CFrame.new(Pos) * YawCF * CFrame.fromEulerAnglesXYZ(self.Pitch, 0, self.Roll)
+	local VisualPos, VisualRot = VisualMotion(self, Pos, dt)
+	self.CFrame = CFrame.new(Pos + VisualPos) * YawCF * CFrame.fromEulerAnglesXYZ(self.Pitch, 0, self.Roll) * VisualRot
 end
 
 -- // Coloca la nave (a traves del VehicleSeat, todo lo soldado se mueve con el).

@@ -18,6 +18,10 @@ local RS = game:GetService('ReplicatedStorage')
 
 local FLIGHT = require(RS:WaitForChild('Gerstner'):WaitForChild('Settings')).FLIGHT
 local GAS, SOUNDS, SHAKE = FLIGHT.GAS, FLIGHT.SOUNDS, FLIGHT.SHAKE
+local JOLT = FLIGHT.WAVE_JOLT
+local Keys = FLIGHT.KEYS
+local UIS = game:GetService('UserInputService')
+local Gerstner = require(RS:WaitForChild('Gerstner'))
 
 local STARTUP_DELAY = 6
 local SMOKE = 'rbxasset://textures/particles/smoke_main.dds'
@@ -43,6 +47,20 @@ local function makeAtt(main, worldPos, worldDir, name)
 end
 
 -- // Boquilla de gas: una nube que se abre y un nucleo brillante y corto
+-- // v19: luz de la boquilla (se enciende con el empuje; se nota sobre el casco y el agua)
+local function addLight(att, items)
+	if GAS.LIGHT and GAS.LIGHT > 0 then
+		local Light = Instance.new('PointLight')
+		Light.Color = Color3.fromRGB(190, 225, 255)
+		Light.Range = 10
+		Light.Brightness = 0
+		Light.Shadows = false
+		Light.Parent = att
+		items.light = Light
+	end
+	return items
+end
+
 -- // v18: efectos de las boquillas. Cada boquilla es una lista de { e = emisor, base = Rate a empuje completo }.
 -- // PERSONALIZAR: crea una carpeta ReplicatedStorage > Gerstner > GasEffects con ParticleEmitters hechos en Studio.
 -- // Se clonan en cada boquilla (el Rate que les pongas es el de empuje completo; el script lo escala con el empuje).
@@ -66,7 +84,7 @@ local function makeNozzle(att, kind: string)
 			end
 		end
 		if #items > 0 then
-			return items
+			return addLight(att, items)
 		end
 	end
 
@@ -106,13 +124,17 @@ local function makeNozzle(att, kind: string)
 	core.Parent = att
 	table.insert(items, { e = core, base = GAS.RATE * 0.6 })
 
-	return items
+	return addLight(att, items)
 end
 
 -- // Escala el Rate de todos los emisores de una boquilla (amount: 0 a 1 = empuje)
 local function setNozzle(items, amount: number)
+	amount = math.clamp(amount, 0, 1)
 	for _, item in items do
 		item.e.Rate = item.base * amount
+	end
+	if items.light then
+		items.light.Brightness = GAS.LIGHT * amount
 	end
 end
 
@@ -154,10 +176,19 @@ local function setupBoat(boat)
 	end
 
 	local up = seat.CFrame.UpVector
-	local downNozzles, upNozzles = {}, {} -- // downNozzles: gas hacia abajo (la nave sube); upNozzles: gas hacia arriba (baja)
+	-- // v19: gas hacia arriba solo en los dos puntos delanteros (el frente es el LookVector del asiento)
+	local look = seat.CFrame.LookVector
+	local ordered = table.clone(points)
+	table.sort(ordered, function(a, b)
+		return (a.WorldPosition - main.Position):Dot(look) > (b.WorldPosition - main.Position):Dot(look)
+	end)
+	local isFront = { [ordered[1]] = true, [ordered[2]] = true }
+	local downNozzles, upNozzles = {}, {} -- // downNozzles: gas hacia abajo (la nave sube); upNozzles: gas hacia arriba (baja), solo delanteras
 	for i, point in points do
 		table.insert(downNozzles, makeNozzle(makeAtt(main, point.WorldPosition, -up, 'GasDown' .. i), 'Vertical'))
-		table.insert(upNozzles, makeNozzle(makeAtt(main, point.WorldPosition, up, 'GasUp' .. i), 'Vertical'))
+		if isFront[point] then
+			table.insert(upNozzles, makeNozzle(makeAtt(main, point.WorldPosition, up, 'GasUp' .. i), 'Vertical'))
+		end
 	end
 
 	-- // v17: boquillas laterales. Al virar a la derecha (D) sale gas por la izquierda, y al reves (A)
@@ -177,7 +208,7 @@ local function setupBoat(boat)
 	states[boat] = {
 		boat = boat, main = main, seat = seat,
 		downNozzles = downNozzles, upNozzles = upNozzles,
-		leftNozzles = leftNozzles, rightNozzles = rightNozzles, lateral = 0,
+		leftNozzles = leftNozzles, rightNozzles = rightNozzles, lateral = 0, prevBank = 0, bankRate = 0,
 		ThrusterLoop = makeSound(SOUNDS.ThrusterLoop, engineParent, 'FlightThruster', true),
 		GasLoop = makeSound(SOUNDS.GasLoop, main, 'GasThrusters', true),
 		GasBurst = makeSound(SOUNDS.GasBurst, main, 'GasBurst', false),
@@ -236,26 +267,6 @@ local function update(s, dt: number)
 	local Hover = GAS.HOVER * s.flightGain
 	local Climb, Descend = math.max(Demand, Hover), math.max(-Demand, 0)
 
-	-- // v17: gas lateral segun el alabeo del casco (A / D). Bank > 0 = alabeo a la derecha (D)
-	local Bank = -s.seat.CFrame.RightVector.Y / math.sin(FLIGHT.MAX_TILT)
-	local LateralTarget = if Flying and math.abs(Bank) > GAS.DEADZONE * 2 then math.clamp(Bank, -1, 1) else 0
-	s.lateral += (LateralTarget - s.lateral) * (1 - math.exp(-dt / 0.12))
-	local Lateral = s.lateral
-	for _, n in s.leftNozzles do
-		setNozzle(n, GAS.LATERAL_SCALE * math.max(Lateral, 0))
-	end
-	for _, n in s.rightNozzles do
-		setNozzle(n, GAS.LATERAL_SCALE * math.max(-Lateral, 0))
-	end
-
-	-- // Gas: sube = boquillas de abajo, baja = boquillas de arriba
-	for _, n in s.downNozzles do
-		setNozzle(n, Climb)
-	end
-	for _, n in s.upNozzles do
-		setNozzle(n, Descend)
-	end
-
 	-- // Propulsores principales: empuje segun velocidad horizontal y orden de avance
 	local Horizontal = Vector3.new(s.vel.X, 0, s.vel.Z).Magnitude
 	local SpeedRatio = math.clamp(Horizontal / FLIGHT.MAX_SPEED, 0, 1)
@@ -264,6 +275,53 @@ local function update(s, dt: number)
 		IntensityTarget = math.clamp(0.25 + SpeedRatio * 0.55 + math.abs(s.seat.Throttle) * 0.35, 0, 1)
 	end
 	s.intensity += (IntensityTarget - s.intensity) * (1 - math.exp(-dt / 0.25))
+
+	-- // v19: casi quieta en el aire (Calm = 1): los gases estabilizan con pulsos irregulares que corrigen el balanceo
+	local Calm = s.flightGain * (1 - SpeedRatio)
+	local Seat = s.seat.CFrame
+	local Bank = -Seat.RightVector.Y / math.sin(FLIGHT.MAX_TILT) -- // > 0 = alabeo a la derecha (D)
+
+	-- // Gas lateral (A / D). Piloto local: sale en el mismo instante en que pulsa la tecla (antes esperaba a que la nave se
+	-- // inclinara). Otros jugadores: se estima con el alabeo mas su velocidad de cambio (adelanta ~0.12 s).
+	local LateralTarget = 0
+	if Flying then
+		if IsLocalPilot(s) and UIS:GetFocusedTextBox() == nil then
+			LateralTarget = (if UIS:IsKeyDown(Keys.RollRight) then 1 else 0) - (if UIS:IsKeyDown(Keys.RollLeft) then 1 else 0)
+		else
+			local Raw = (Bank - s.prevBank) / math.max(dt, 1e-3)
+			s.bankRate += (Raw - s.bankRate) * (1 - math.exp(-dt / 0.05))
+			local Lead = Bank + s.bankRate * 0.12
+			if math.abs(Lead) > GAS.DEADZONE * 2 then
+				LateralTarget = math.clamp(Lead, -1, 1)
+			end
+		end
+	end
+	s.prevBank = Bank
+	local LateralTau = if math.abs(LateralTarget) > math.abs(s.lateral) then 0.04 else 0.14
+	s.lateral += (LateralTarget - s.lateral) * (1 - math.exp(-dt / LateralTau))
+	local Lateral = s.lateral
+
+	local Stabilize = Calm * GAS.STABILIZE
+	local StabRoll = Stabilize * math.clamp(Bank * 8, -1, 1) -- // alabeo a la derecha: dispara la izquierda
+	local StabPitch = Stabilize * math.clamp(Seat.LookVector.Y * 10, 0, 1) -- // nariz arriba: dispara el gas de arriba delantero
+	local FlutterLeft = Stabilize * 0.3 * math.max(0, math.noise(clock * 1.6, 61.3) * 2)
+	local FlutterRight = Stabilize * 0.3 * math.max(0, math.noise(clock * 1.6, 83.7) * 2)
+
+	for _, n in s.leftNozzles do
+		setNozzle(n, GAS.LATERAL_SCALE * math.max(Lateral, 0) + math.max(StabRoll, 0) + FlutterLeft)
+	end
+	for _, n in s.rightNozzles do
+		setNozzle(n, GAS.LATERAL_SCALE * math.max(-Lateral, 0) + math.max(-StabRoll, 0) + FlutterRight)
+	end
+
+	-- // Gas: sube = boquillas de abajo (cada una con su pulso al estar quieta), baja = boquillas de arriba delanteras
+	for i, n in s.downNozzles do
+		local Pulse = 1 + (0.75 + 0.5 * (math.noise(clock * 2.3, i * 1.7 + 0.3) + 0.5) - 1) * Calm
+		setNozzle(n, Climb * Pulse)
+	end
+	for _, n in s.upNozzles do
+		setNozzle(n, Descend + StabPitch)
+	end
 
 	if s.ThrusterLoop then
 		s.ThrusterLoop.Volume = SOUNDS.THRUSTER_VOLUME * s.intensity * s.flightGain
@@ -284,6 +342,10 @@ local function update(s, dt: number)
 	-- // Vibracion (solo del piloto local)
 	if SHAKE.ENABLED and IsLocalPilot(s) then
 		local Amount = s.flightGain * (SHAKE.BASE * s.intensity + SHAKE.SPEED * SpeedRatio + SHAKE.GAS * math.abs(Demand))
+		-- // v19: sobre la ola gigante la camara vibra tambien en el agua (misma medida que las sacudidas de la nave)
+		local Fraction = Gerstner.ComputeGiantWave(pos, workspace:GetServerTimeNow()).Y / Gerstner.GIANT_CONFIG.Height
+		local Rough = math.clamp((Fraction - JOLT.START) / (JOLT.FULL - JOLT.START), 0, 1)
+		Amount = math.max(Amount, Rough * SHAKE.WAVE)
 		ShakeTarget = math.max(ShakeTarget, math.clamp(Amount, 0, 1))
 	end
 end

@@ -22,6 +22,8 @@ local SURFACE_OFFSET = 0.15
 local RIBBON_INTERVAL = 0.15
 local RIBBON_MIN_DIST = 3
 local STARTUP_DELAY = 6
+local IDLE_RATIO = 0.25           -- v19: fraccion de la espuma / agitacion que queda con la nave quieta
+local DOWNWASH_MAX = 45           -- v19: particulas / s de agua levantada por los gases al flotar bajo (por Propulsor)
 
 -- Impact splash
 local IMPACT_MIN_DV = 18          -- studs/s change in vertical velocity that counts as a slam (lower = more sensitive)
@@ -211,8 +213,9 @@ local function setupBoat(boat)
 	local sternL, sternR = sides(list[3], list[4])
 
 	local emitters = {} -- { e, max, curve }
-	local function add(e, max, curve)
-		table.insert(emitters, { e = e, max = max, curve = curve })
+	local function add(e, max, curve, idle)
+		-- idle: 'water' = tambien en reposo sobre el agua; 'surface' = tambien en reposo (agua o flotando bajo)
+		table.insert(emitters, { e = e, max = max, curve = curve, idle = idle })
 	end
 
 	-- Stern spray (big plume up/back)
@@ -258,7 +261,7 @@ local function setupBoat(boat)
 			Lifetime = NumberRange.new(0.8, 1.6), Speed = NumberRange.new(4, 9),
 			Spread = Vector2.new(30, 30), Accel = Vector3.new(0, -4, 0),
 			Size = seq(2, 7), Transparency = fade(0.3, 0.6, 1),
-		}), 18, 0.8)
+		}), 18, 0.8, 'water')
 
 		-- Surface foam left in the world (attachment is moved to the water height every frame)
 		local foamAtt = makeAtt(main, srcPos, up, "SurfaceFoam" .. i)
@@ -266,8 +269,18 @@ local function setupBoat(boat)
 			Lifetime = NumberRange.new(2, 3.5), Speed = NumberRange.new(0.5, 2),
 			Spread = Vector2.new(80, 80), Size = seq(4, 12), Transparency = fade(0.45, 0.7, 1),
 			Orientation = Enum.ParticleOrientation.FacingCameraWorldUp, RotSpeed = NumberRange.new(-15, 15), Light = 0.15,
-		}), 6, 0.7)
+		}), 6, 0.7, 'surface')
 		table.insert(foamAtts, foamAtt)
+	end
+
+	-- v19: agua levantada por los gases al flotar bajo (sigue el punto del agua bajo cada Propulsor, como la espuma)
+	local downwash = {}
+	for _, att in foamAtts do
+		table.insert(downwash, makeEmitter(att, {
+			Lifetime = NumberRange.new(0.6, 1.2), Speed = NumberRange.new(10, 22),
+			Spread = Vector2.new(75, 75), Accel = Vector3.new(0, -18, 0),
+			Size = seq(1.5, 5), Transparency = fade(0.35, 0.65, 1), Light = 0.15,
+		}))
 	end
 
 	-- Impact effects (burst only)
@@ -303,7 +316,7 @@ local function setupBoat(boat)
 
 	states[boat] = {
 		boat = boat, main = main, seat = seat,
-		emitters = emitters, foamAtts = foamAtts, impact = impact, impactAtt = impactAtt,
+		emitters = emitters, foamAtts = foamAtts, downwash = downwash, impact = impact, impactAtt = impactAtt,
 		ribbons = ribbons, lastT = 0, lastPos = Vector3.zero, frame = 0,
 		prevVy = 0, lastImpact = 0,
 		prevPos = nil, prevClock = 0, vel = Vector3.zero,
@@ -383,8 +396,21 @@ local function update(s)
 
 	-- Particle rates scale with speed
 	local ratio = if active then math.clamp((speed - MIN_SPEED) / (SPEED_FULL - MIN_SPEED), 0, 1) * fade else 0
+	-- v19: en reposo sigue habiendo agitacion (sobre el agua, o flotando bajo para la espuma de superficie)
+	local idleWater = if OnWater then IDLE_RATIO else 0
+	local idleSurface = if fade > 0.05 then IDLE_RATIO * fade else 0
 	for _, em in s.emitters do
-		em.e.Rate = em.max * (ratio ^ em.curve)
+		local r = ratio
+		if em.idle == "water" then
+			r = math.max(r, idleWater)
+		elseif em.idle == "surface" then
+			r = math.max(r, idleSurface)
+		end
+		em.e.Rate = em.max * (r ^ em.curve)
+	end
+	local washRate = if OnWater then 0 else DOWNWASH_MAX * fade
+	for _, wash in s.downwash do
+		wash.Rate = washRate
 	end
 
 	-- Keep surface foam on the water

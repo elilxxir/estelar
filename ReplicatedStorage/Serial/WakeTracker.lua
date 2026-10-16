@@ -12,7 +12,14 @@ local MIN_SPEED = 6
 local SPEED_FULL = 60
 local INTERVAL = 0.1
 local MIN_DIST = 2
-local MAX_POINTS = 150
+local MAX_POINTS = 320 -- // v19: antes 150; con varias cadenas el final de la estela se cortaba de golpe a toda velocidad
+
+-- // v19: estela en reposo. Si la nave esta quieta (o casi) sobre el agua, o flotando muy bajo, deja ondas que se abren
+-- // alrededor de cada Propulsor (en el aire son mas grandes: el gas empuja el agua hacia abajo).
+local IDLE_INTERVAL = 0.35
+local IDLE_STRENGTH = 0.5
+local IDLE_WATER = { r0 = 7, spread = 13, life = 2.8 }
+local IDLE_AIR = { r0 = 12, spread = 16, life = 2.2 }
 
 -- radio inicial, crecimiento, vida (s)
 local STERN = { r0 = 14, spread = 22, life = 5 }
@@ -65,6 +72,7 @@ local function register(boat)
 		bow = { list[1], list[2] },
 		stern = { list[3], list[4] },
 		lastT = 0,
+		lastIdleT = 0,
 		lastPos = Vector3.zero,
 		prevPos = nil,
 		prevClock = 0,
@@ -105,6 +113,10 @@ local function push(chain, pos, t, cfg, strength)
 	end
 	chain.x, chain.z, chain.t = pos.X, pos.Z, t
 	table.insert(points, { pos.X, pos.Z, px, pz, t, cfg.r0, cfg.spread, cfg.life, strength })
+end
+
+local function pushIdle(pos, t, cfg, strength)
+	table.insert(points, { pos.X, pos.Z, pos.X, pos.Z, t, cfg.r0, cfg.spread, cfg.life, strength })
 end
 
 function WakeTracker.Update()
@@ -150,6 +162,17 @@ function WakeTracker.Update()
 			end
 			push(b.chains.bowL, b.bow[1].WorldPosition, now, BOW, strength * 0.7)
 			push(b.chains.bowR, b.bow[2].WorldPosition, now, BOW, strength * 0.7)
+		elseif fade > 0.05 and speed <= MIN_SPEED and now - b.lastIdleT >= IDLE_INTERVAL then
+			b.lastIdleT = now
+			local cfg = if (b.boat:GetAttribute("FlightMode") or "Water") == "Water" then IDLE_WATER else IDLE_AIR
+			local strength = IDLE_STRENGTH * fade
+			if #b.props > 0 then
+				for _, part in b.props do
+					pushIdle(part.Position, now, cfg, strength)
+				end
+			else
+				pushIdle((b.stern[1].WorldPosition + b.stern[2].WorldPosition) / 2, now, cfg, strength)
+			end
 		end
 	end
 
