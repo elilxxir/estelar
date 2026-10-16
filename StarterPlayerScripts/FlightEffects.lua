@@ -130,7 +130,8 @@ end
 -- // Escala el Rate de todos los emisores de una boquilla (amount: 0 a 1 = empuje)
 local function setNozzle(items, amount: number)
 	amount = math.clamp(amount, 0, 1)
-	for _, item in items do
+	-- // ipairs: solo la parte de lista (emisores). items.light es una clave aparte y no debe recorrerse aqui.
+	for _, item in ipairs(items) do
 		item.e.Rate = item.base * amount
 	end
 	if items.light then
