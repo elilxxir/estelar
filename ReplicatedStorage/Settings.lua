@@ -204,6 +204,7 @@ return {
 		TOUCHDOWN_STUCK_MARGIN = 6, -- // v16: si la nave se queda entre TOUCHDOWN_HEIGHT y TOUCHDOWN_HEIGHT + esto sin bajar...
 		TOUCHDOWN_STUCK_TIME = 1, -- // v16: ...durante tantos segundos, el servidor la da por aterrizada (pasa a Water)
 		MAX_ALTITUDE = 200, -- // Techo sobre el nivel del mar (PLANE_OFFSET.Y). Absoluto, NO relativo a la ola: la ola gigante no se puede sobrevolar
+		TAKEOFF_MAX_WAVE = 0.005, -- // v22: no se puede despegar con la ola gigante bajo la nave por encima de esta fraccion de su altura (0.005 = 10 studs)
 		SWEPT_TOLERANCE = 2, -- // Si la ola sube por encima del techo mas esto, la nave es arrastrada (vuelve a Water)
 
 		-- // Vertical (colectivo)
@@ -259,7 +260,7 @@ return {
 		SCALE_ATTACK = 0.15, -- // s: cuanto tarda en reducir los limites (rapido)
 		SCALE_RELEASE = 1.2, -- // s: cuanto tarda en recuperarlos (lento)
 		TARGET_RISE_RATE = 40, -- // studs/s: tope al cambio del objetivo de altura minima (debe ser <= MAX_CLIMB_RATE)
-		TARGET_FALL_RATE = 12,
+		TARGET_FALL_RATE = 35, -- // v22: antes 12. Tras subir por una ola el piso blando tardaba ~15 s en soltarse y Q no podia bajar la nave
 		TARGET_SMOOTH = 0.25, -- // s
 
 		-- // Validacion del servidor
@@ -353,10 +354,12 @@ return {
 		TILT_FREQ = 3, -- // rad/s. Cabeceo / alabeo
 		TILT_DAMPING = 0.45,
 		-- // Sobre la ola gigante la nave vuelve a la respuesta rigida de antes (si no, la ola la atraviesa)
-		GIANT_HEAVE_FREQ = 8,
-		GIANT_HEAVE_DAMPING = 0.9,
-		GIANT_TILT_FREQ = 10,
-		GIANT_TILT_DAMPING = 0.85,
+		GIANT_HEAVE_FREQ = 4.5, -- // v22 (antes 8 / 0.9 / 10 / 0.85): sobre la ola la nave sigue el oleaje con inercia en vez de pegarse rigida a la superficie
+		GIANT_HEAVE_DAMPING = 0.75,
+		GIANT_TILT_FREQ = 4,
+		GIANT_TILT_DAMPING = 0.7,
+		GIANT_JOLT = 0.2, -- // v22: fraccion de las sacudidas visuales (FLIGHT.WAVE_JOLT) que se aplican en el agua (en vuelo siguen al 100%)
+		GIANT_JOLT_FREQ = 0.3, -- // v22: ...y su frecuencia (0.3 = mucho mas lentas, cabeceo de mar en vez de vibracion)
 
 		-- // Balanceo visual (solo se ve, no entra en la fisica)
 		SWAY = {
@@ -379,7 +382,7 @@ return {
 			FULL = 0.12, -- // ...y donde es completo
 			CUTOFF = 0.05, -- // con mas bloqueo que esto el acelerador no hace nada
 			EXTRA_DRAG = 2, -- // frenado extra del casco (veces DECELERATION) al estar bloqueada
-			CARRY = 0.85, -- // fraccion de la velocidad de la ola con la que la arrastra
+			CARRY = 0.35, -- // fraccion de la velocidad de la ola con la que la arrastra. v22: antes 0.85; asi la ola casi no pasaba bajo la nave y subia muy lento. Menor = la ola la levanta mas rapido; 1 = la nave viaja con la ola y no sube
 		},
 	},
 

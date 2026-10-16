@@ -65,6 +65,7 @@ end)
 -- ============================================================
 
 local FLIGHT = require(game.ReplicatedStorage.Gerstner.Settings).FLIGHT
+local Gerstner = require(game.ReplicatedStorage.Gerstner)
 
 local FlightEvent = Instance.new('RemoteEvent')
 FlightEvent.Name = 'FlightEvent'
@@ -167,6 +168,11 @@ FlightEvent.OnServerEvent:Connect(function(Player: Player, Action: any)
 			end
 			local Zone = ZoneManager:GetZoneParameters(VehicleSeat.Position)
 			if Zone ~= nil and Zone.Type == 'Whirlpool' and not FLIGHT.ALLOW_IN_WHIRLPOOL then
+				return
+			end
+			-- // v22: no se despega con la ola gigante bajo la nave (la ola la arrastra y el piso de vuelo subiria sin control)
+			local WaveFraction = Gerstner.ComputeGiantWave(VehicleSeat.Position, workspace:GetServerTimeNow()).Y / Gerstner.GIANT_CONFIG.Height
+			if WaveFraction > FLIGHT.TAKEOFF_MAX_WAVE then
 				return
 			end
 			SetFlightMode('Takeoff')

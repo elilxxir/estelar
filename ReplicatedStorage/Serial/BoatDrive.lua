@@ -365,13 +365,16 @@ local function VisualMotion(self, Pos: Vector3, dt: number): (Vector3, CFrame)
 	local R = self.Rough
 	if R > 0.001 then
 		-- // Señal puntiaguda (n * |n|): reposo con golpes secos en vez de un vaiven suave
+		-- // v22: en el agua las sacudidas son mucho mas suaves y lentas (cabeceo de mar); en vuelo siguen como antes
+		local JoltScale = if Flying then 1 else BM.GIANT_JOLT
+		local JoltFreq = if Flying then JOLT.FREQ else JOLT.FREQ * BM.GIANT_JOLT_FREQ
 		local function Spike(Seed: number): number
-			local n = math.noise(c * JOLT.FREQ, Seed) * 1.4
+			local n = math.noise(c * JoltFreq, Seed) * 1.4
 			return n * math.abs(n) * 2
 		end
-		Pitch += R * JOLT.PITCH * Spike(10.1)
-		Roll += R * JOLT.ROLL * Spike(20.2)
-		Bob += R * JOLT.BOB * Spike(30.3)
+		Pitch += R * JoltScale * JOLT.PITCH * Spike(10.1)
+		Roll += R * JoltScale * JOLT.ROLL * Spike(20.2)
+		Bob += R * JoltScale * JOLT.BOB * Spike(30.3)
 	end
 	return Vector3.new(0, Bob, 0), CFrame.Angles(Pitch, Yaw, Roll)
 end
