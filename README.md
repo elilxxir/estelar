@@ -36,6 +36,7 @@ Visuals:
 * Add camera shaking/blur/etc depending on movement/waving.
 
 Sys:
+* Fix RoughSea's `SpeedMultiplier` type: `Workspace/RoughSeaArea (Part)/RoughSea.lua` sets it to the string `'5'`, but wave calculations multiply it by numeric wave speed; entering the zone can error.
 * Fix particle emitters attachment location (BoatWakes > func makeAtt).
 * Add multiple cameras attached to the ship for immersion.
 * Add enter driver/passenger seats prompt by the ship door:
